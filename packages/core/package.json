@@ -1,0 +1,55 @@
+{
+  "name": "@feathers-baas/core",
+  "version": "0.0.1",
+  "description": "Core Feathers.js v5 app factory for feathers-baas",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "db:migrate": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:latest --knexfile knexfile.ts",
+    "db:rollback": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:rollback --knexfile knexfile.ts",
+    "db:seed": "node --import tsx/esm ./node_modules/knex/bin/cli.js seed:run --knexfile knexfile.ts",
+    "db:reset": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:rollback --all --knexfile knexfile.ts && pnpm db:migrate"
+  },
+  "dependencies": {
+    "@feathersjs/authentication": "^5.0.30",
+    "@feathersjs/authentication-local": "^5.0.30",
+    "@feathersjs/authentication-oauth": "^5.0.30",
+    "@feathersjs/errors": "^5.0.30",
+    "@feathersjs/feathers": "^5.0.30",
+    "@feathersjs/koa": "^5.0.30",
+    "@feathersjs/knex": "^5.0.30",
+    "@feathersjs/typebox": "^5.0.30",
+    "@sinclair/typebox": "^0.25.0",
+    "argon2": "^0.41.0",
+    "dotenv": "^16.4.0",
+    "feathers-authentication-management": "^4.0.0",
+    "feathers-hooks-common": "^8.2.1",
+    "knex": "^3.1.0",
+    "lru-cache": "^11.0.0",
+    "pg": "^8.13.0",
+    "pino": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "pino-pretty": "*",
+    "tsup": "*",
+    "tsx": "^4.19.0",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}
