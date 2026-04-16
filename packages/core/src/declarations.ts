@@ -14,11 +14,27 @@ export interface ServiceTypes {
   roles: RolesClass
 }
 
+/**
+ * Signature of the notifier function consumed by feathers-authentication-management.
+ * Set `app.set('notifier', fn)` in your plugin setup to replace the default stub.
+ * The stub logs to console; the real implementation is in @feathers-baas/plugin-notifications.
+ */
+export type AppNotifierFn = (
+  type: string,
+  user: Record<string, unknown>,
+  notifierOptions: Record<string, unknown>,
+) => Promise<void>
+
 export interface Configuration {
   knex: Knex
   config: AppConfiguration
   // Auth settings stored by AuthenticationService
   authentication: Record<string, unknown>
+  /**
+   * Optional notifier override — set by @feathers-baas/plugin-notifications.
+   * Falls back to console-logging stub when not configured.
+   */
+  notifier?: AppNotifierFn
 }
 
 // Application is the @feathersjs/koa Application with our typed services and config

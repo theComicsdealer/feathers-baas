@@ -1,0 +1,47 @@
+{
+  "name": "@feathers-baas/plugin-files",
+  "version": "0.0.1",
+  "description": "Files service plugin for feathers-baas — local, S3, and GCS storage drivers",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@feathersjs/authentication": "^5.0.30",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/lib-storage": "^3.600.0",
+    "@aws-sdk/s3-request-presigner": "^3.600.0",
+    "@feathersjs/errors": "^5.0.30",
+    "@feathersjs/feathers": "^5.0.30",
+    "@feathersjs/knex": "^5.0.30",
+    "@feathersjs/typebox": "^5.0.30",
+    "@google-cloud/storage": "^7.11.0",
+    "@sinclair/typebox": "^0.25.0",
+    "busboy": "^1.6.0",
+    "jsonwebtoken": "^9.0.0",
+    "knex": "^3.1.0",
+    "mime-types": "^2.1.35"
+  },
+  "devDependencies": {
+    "@types/busboy": "^1.5.4",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/mime-types": "^2.1.4",
+    "tsup": "*",
+    "tsx": "^4.19.0",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}
