@@ -11,9 +11,22 @@ const AppConfigurationSchema = Type.Object({
     Type.Literal('production'),
   ], { default: 'development' }),
 
-  postgres: Type.Object({
+  postgres: Type.Optional(Type.Object({
     url: Type.String({ minLength: 1 }),
-  }),
+  })),
+
+  mysql: Type.Optional(Type.Object({
+    url: Type.String({ minLength: 1 }),
+  })),
+
+  sqlite: Type.Optional(Type.Object({
+    filename: Type.String({ minLength: 1 }),
+  })),
+
+  mongodb: Type.Optional(Type.Object({
+    url: Type.String({ minLength: 1 }),
+    dbName: Type.Optional(Type.String()),
+  })),
 
   jwtSecret: Type.String({ minLength: 32 }),
   jwtExpiry: Type.String({ default: '15m' }),
@@ -75,9 +88,24 @@ export function resolveConfig(): AppConfiguration {
     port: process.env['PORT'] ? Number(process.env['PORT']) : 3030,
     nodeEnv: process.env['NODE_ENV'] ?? 'development',
 
-    postgres: {
-      url: process.env['DATABASE_URL'] ?? '',
-    },
+    postgres: process.env['DATABASE_URL']
+      ? { url: process.env['DATABASE_URL'] }
+      : undefined,
+
+    mysql: process.env['MYSQL_URL']
+      ? { url: process.env['MYSQL_URL'] }
+      : undefined,
+
+    sqlite: process.env['SQLITE_FILENAME']
+      ? { filename: process.env['SQLITE_FILENAME'] }
+      : undefined,
+
+    mongodb: process.env['MONGODB_URL']
+      ? {
+          url: process.env['MONGODB_URL'],
+          dbName: process.env['MONGODB_DB_NAME'],
+        }
+      : undefined,
 
     jwtSecret: process.env['JWT_SECRET'] ?? '',
     jwtExpiry: process.env['JWT_EXPIRY'] ?? '15m',

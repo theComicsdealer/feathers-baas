@@ -46,7 +46,13 @@
     "pg": "^8.13.0",
     "pino": "^9.0.0"
   },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "mongodb": "^6.0.0",
+    "mysql2": "^3.0.0"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
     "@types/pg": "^8.11.0",
     "bullmq": "^5.74.1",
     "pino-pretty": "*",

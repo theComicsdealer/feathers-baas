@@ -25,13 +25,13 @@ npx feathers-baas init my-api
 
 ## Status
 
-> **M2 complete** — file storage (local/S3/GCS) and BullMQ-backed email notifications shipped.
+> **M3 complete** — CLI generators and database agnosticism shipped.
 
 | Milestone | Status | What ships |
 |---|---|---|
 | M1 — Skeleton | ✅ Done | Auth, users, roles, Postgres, migrations |
 | M2 — Storage & Notifications | ✅ Done | `plugin-files` (local/S3/GCS) · `plugin-notifications` (SMTP/Resend/SendGrid/Brevo) · auth management (verify email, password reset) |
-| M3 — Generators & DB agnosticism | 📋 Planned | `generate service`, MySQL/SQLite/MongoDB |
+| M3 — Generators & DB agnosticism | ✅ Done | `generate service` · `generate hook` · MySQL/SQLite/MongoDB adapters |
 | M4 — Production polish | 📋 Planned | OpenAPI, Docker, health checks, `doctor` |
 | M5 — Plugin system | 📋 Planned | Plugin loader, npm publish |
 
@@ -45,7 +45,7 @@ feathers-baas/
 │   ├── core/                    # @feathers-baas/core — the Feathers app factory
 │   ├── plugin-files/            # @feathers-baas/plugin-files — file storage (local/S3/GCS)
 │   ├── plugin-notifications/    # @feathers-baas/plugin-notifications — BullMQ email queue
-│   └── cli/                     # feathers-baas — the npx-able CLI (in progress)
+│   └── cli/                     # feathers-baas — the npx-able CLI (generate service, generate hook)
 ├── PLAN.md              # Full implementation plan
 ├── .claude/
 │   ├── PRD.md           # Product requirements
@@ -59,7 +59,7 @@ feathers-baas/
 
 - Node.js >= 20
 - pnpm >= 9 (`npm install -g pnpm`)
-- PostgreSQL 14+ (or Docker)
+- One of: PostgreSQL 14+, MySQL 8+, SQLite 3, or MongoDB 6+ (or Docker)
 
 ---
 
@@ -260,6 +260,104 @@ These fields are managed automatically — they are **never exposed in API respo
 | `resetAttempts` | `integer` | Number of reset attempts |
 
 > **Note:** `isVerified` is returned in user responses. All token fields are stripped.
+
+---
+
+## CLI Generators
+
+The `feathers-baas` CLI generates services and hooks with full TypeBox schemas, Knex migrations, and hooks — wired into the app via AST-safe ts-morph patching.
+
+### Generate a service
+
+```bash
+npx feathers-baas generate service --name posts --fields "title:string,body:text,publishedAt:date:optional"
+```
+
+Creates 5 files and patches 2 existing files:
+
+| File | What it does |
+|---|---|
+| `src/services/posts/posts.schema.ts` | TypeBox schemas (main, data, patch, query) |
+| `src/services/posts/posts.class.ts` | `KnexService` subclass |
+| `src/services/posts/posts.hooks.ts` | Hook chain (JWT auth + permission check) |
+| `src/services/posts/posts.service.ts` | Service configuration |
+| `migrations/<timestamp>_create_posts.ts` | Knex migration |
+| `src/services/index.ts` | **Patched** — import + configure call added |
+| `src/declarations.ts` | **Patched** — type import + ServiceTypes entry added |
+
+#### Field types
+
+| Type | TypeBox | Knex column |
+|---|---|---|
+| `string` | `Type.String()` | `string(255)` |
+| `text` | `Type.String()` | `text` |
+| `integer` | `Type.Integer()` | `integer` |
+| `number` | `Type.Number()` | `float` |
+| `boolean` | `Type.Boolean()` | `boolean` |
+| `date` | `Type.String({ format: 'date-time' })` | `timestamp` |
+| `json` | `Type.Object({})` | `jsonb` |
+
+Append `:optional` to any field to make it nullable in the schema and migration.
+
+#### Interactive mode
+
+Run without flags for interactive prompts:
+
+```bash
+npx feathers-baas generate service
+```
+
+### Generate a hook
+
+```bash
+npx feathers-baas generate hook --name slugify
+```
+
+Creates `src/hooks/slugify.ts` — a typed hook function ready to add to any service's hook chain.
+
+---
+
+## Database Adapters
+
+feathers-baas supports four database backends. Each generated app uses one — chosen at `init` time.
+
+| Database | Adapter | Driver package | Env var |
+|---|---|---|---|
+| PostgreSQL | `db/knex.ts` | `pg` | `DATABASE_URL` |
+| MySQL | `db/mysql.ts` | `mysql2` | `MYSQL_URL` |
+| SQLite | `db/sqlite.ts` | `better-sqlite3` | `SQLITE_FILENAME` |
+| MongoDB | `db/mongo.ts` | `mongodb` | `MONGODB_URL` |
+
+### Knex-based adapters (Postgres, MySQL, SQLite)
+
+All three use Knex with automatic camelCase-to-snake_case conversion. Services use `KnexService` from `@feathersjs/knex`. Migrations are standard Knex migration files.
+
+```ts
+// Postgres (default)
+import { configureKnex } from '@feathers-baas/core/db'
+await configureKnex(app)
+
+// MySQL
+import { configureMysql } from '@feathers-baas/core/db'
+await configureMysql(app)
+
+// SQLite
+import { configureSqlite } from '@feathers-baas/core/db'
+await configureSqlite(app)
+```
+
+SQLite uses a single-connection pool (`{ min: 1, max: 1 }`) since it doesn't support concurrent writes.
+
+### MongoDB adapter
+
+Uses the native `mongodb` driver with a `MongoClient` singleton. Services use `MongoDBService` from `@feathersjs/mongodb`.
+
+```ts
+import { configureMongo } from '@feathers-baas/core/db'
+await configureMongo(app)
+```
+
+Set `MONGODB_URL` and optionally `MONGODB_DB_NAME` in your environment.
 
 ---
 
@@ -609,7 +707,11 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | ✅ | — | Postgres connection string |
+| `DATABASE_URL` | * | — | Postgres connection string |
+| `MYSQL_URL` | * | — | MySQL connection string |
+| `SQLITE_FILENAME` | * | — | SQLite database file path |
+| `MONGODB_URL` | * | — | MongoDB connection string |
+| `MONGODB_DB_NAME` | | — | MongoDB database name (extracted from URL if omitted) |
 | `JWT_SECRET` | ✅ | — | HMAC secret, min 32 chars |
 | `PORT` | | `3030` | HTTP port |
 | `HOST` | | `0.0.0.0` | Bind address |
@@ -635,6 +737,8 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | `BREVO_FROM_NAME` | | `feathers-baas` | Brevo sender display name |
 | `BREVO_FROM_ADDRESS` | | — | Brevo verified sender address |
 
+\* Exactly one database env var is required (`DATABASE_URL`, `MYSQL_URL`, `SQLITE_FILENAME`, or `MONGODB_URL`).
+
 ---
 
 ## Tech stack
@@ -644,7 +748,7 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | Framework | Feathers.js v5 |
 | Language | TypeScript (strict) |
 | HTTP | Koa (`@feathersjs/koa`) |
-| Database | Knex + `pg` (Postgres) |
+| Database | Knex (`pg`, `mysql2`, `better-sqlite3`) or native `mongodb` |
 | Validation | TypeBox (`@feathersjs/typebox`) |
 | Auth | `@feathersjs/authentication` + argon2id + `feathers-authentication-management` |
 | File storage | `@feathers-baas/plugin-files` — local / S3 / GCS |
@@ -653,6 +757,7 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | Queue | BullMQ + ioredis (Redis) |
 | Logging | pino |
 | Testing | Vitest |
+| CLI | Clipanion + @inquirer/prompts + ts-morph |
 | Build | tsup |
 | Package manager | pnpm workspaces |
 
