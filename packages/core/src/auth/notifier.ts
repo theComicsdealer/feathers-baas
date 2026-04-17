@@ -21,9 +21,9 @@ export function createNotifier(app: Application): AppNotifierFn {
   return async (type, user, opts) => {
     const delegate = app.get('notifier')
     if (delegate) {
+      logger.debug({ type, email: user['email'] }, 'Notifier: delegating to notification plugin')
       return delegate(type, user, opts)
     }
-    // Sync fallback — logs intent when no notification plugin is configured
     logger.info(
       { type, userId: user['id'], email: user['email'] },
       'Notification triggered (no driver configured — install @feathers-baas/plugin-notifications)',

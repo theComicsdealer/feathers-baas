@@ -133,6 +133,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.0
         version: 8.20.0
+      bullmq:
+        specifier: ^5.74.1
+        version: 5.74.1
       pino-pretty:
         specifier: '*'
         version: 13.1.3

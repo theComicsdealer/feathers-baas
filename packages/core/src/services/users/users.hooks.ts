@@ -2,10 +2,12 @@
 import { authenticate } from '@feathersjs/authentication'
 import { BadRequest, Forbidden } from '@feathersjs/errors'
 import { iff, isProvider } from 'feathers-hooks-common'
+import { addVerification, removeVerification } from 'feathers-authentication-management'
 import * as argon2 from 'argon2'
 import type { HookContext } from '@feathersjs/feathers'
 import type { Application } from '../../declarations.js'
 import { checkPermissions } from '../../hooks/permission-check.js'
+import { createNotifier } from '../../auth/notifier.js'
 
 // ─── Password hashing ────────────────────────────────────────────────────────
 
@@ -98,6 +100,27 @@ function filterDeleted(context: HookContext<Application>): void {
   }
 }
 
+// ─── Convert ms timestamps to Date for PostgreSQL ────────────────────────────
+
+function coerceVerificationDates(context: HookContext<Application>): void {
+  const data = context.data as Record<string, unknown> | undefined
+  if (!data) return
+  for (const field of ['verifyExpires', 'resetExpires']) {
+    if (typeof data[field] === 'number') {
+      data[field] = new Date(data[field] as number)
+    }
+  }
+}
+
+// ─── Verification email after signup ─────────────────────────────────────────
+
+async function sendVerificationEmail(context: HookContext<Application>): Promise<void> {
+  const user = context.result as Record<string, unknown>
+  if (!user || !user['email']) return
+  const notifier = createNotifier(context.app)
+  await notifier('resendVerifySignup', user, {})
+}
+
 // ─── Hook chains ─────────────────────────────────────────────────────────────
 
 export const usersHooks = {
@@ -122,6 +145,8 @@ export const usersHooks = {
       iff(isProvider('rest'), preventAdminRole),
       checkEmailUnique,
       hashPassword,
+      addVerification('authManagement'),
+      coerceVerificationDates,
     ],
     update: [iff(isProvider('rest'), checkPermissions)],
     patch: [
@@ -129,12 +154,17 @@ export const usersHooks = {
       iff(isProvider('rest'), preventAdminRole),
       preventEmptyRoles,
       hashPassword,
+      coerceVerificationDates,
     ],
     remove: [iff(isProvider('rest'), checkPermissions)],
   },
   after: {
     all: [stripPassword],
-    create: [],
+    find: [removeVerification()],
+    get: [removeVerification()],
+    create: [sendVerificationEmail, removeVerification()],
+    patch: [removeVerification()],
+    remove: [removeVerification()],
   },
   error: {},
 }

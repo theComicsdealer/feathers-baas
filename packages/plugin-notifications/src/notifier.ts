@@ -151,6 +151,39 @@ export interface BullMQNotifierOptions {
  * app.set('notifier', createBullMQNotifier({ queue, registry, appUrl }))
  * ```
  */
+export interface DirectNotifierOptions {
+  /** Driver registry — used to determine which drivers handle each event. */
+  registry: DriverRegistry
+  /** Public base URL of the app. */
+  appUrl: string
+}
+
+/**
+ * Create a notifier that sends notifications directly via the driver (no queue).
+ * Use this when Redis/BullMQ is not available — suitable for API-based drivers
+ * (Brevo, Resend, SendGrid) in development or low-traffic environments.
+ */
+export function createDirectNotifier(opts: DirectNotifierOptions): NotifierFn {
+  return async (type, user, _notifierOptions) => {
+    const eventKey = AUTH_MANAGEMENT_EVENT_MAP[type]
+    if (!eventKey) return
+
+    const notification = buildAuthNotification(eventKey, user, opts.appUrl)
+    if (!notification) return
+
+    const driverNames = opts.registry.getDriversForEvent(eventKey)
+    if (driverNames.length === 0) return
+
+    await Promise.all(
+      driverNames.map(async (driverName) => {
+        const driver = opts.registry.getDriver(driverName)
+        if (!driver) return
+        await driver.send(notification)
+      }),
+    )
+  }
+}
+
 export function createBullMQNotifier(opts: BullMQNotifierOptions): NotifierFn {
   return async (type, user, _notifierOptions) => {
     const eventKey = AUTH_MANAGEMENT_EVENT_MAP[type]

@@ -32,8 +32,8 @@
     "@feathersjs/authentication-oauth": "^5.0.30",
     "@feathersjs/errors": "^5.0.30",
     "@feathersjs/feathers": "^5.0.30",
-    "@feathersjs/koa": "^5.0.30",
     "@feathersjs/knex": "^5.0.30",
+    "@feathersjs/koa": "^5.0.30",
     "@feathersjs/typebox": "^5.0.30",
     "@sinclair/typebox": "^0.25.0",
     "argon2": "^0.41.0",
@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",
+    "bullmq": "^5.74.1",
     "pino-pretty": "*",
     "tsup": "*",
     "tsx": "^4.19.0",

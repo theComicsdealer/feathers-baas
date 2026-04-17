@@ -9,56 +9,24 @@ import {
   createNotificationQueue,
   createNotificationWorker,
   createBullMQNotifier,
+  createDirectNotifier,
 } from '@feathers-baas/plugin-notifications'
 import type { Application } from '../declarations.js'
+import type { AppConfiguration } from '../configuration.js'
 import { logger } from '../logger.js'
 
-/**
- * Wire the notifications plugin into the Feathers app.
- *
- * Called automatically from app.ts when REDIS_URL is present in config.
- * If REDIS_URL is absent the auth notifier stub (console-log) is used instead.
- *
- * Bootstraps in this order:
- * 1. Connect to Redis (fail-fast with SELECT 0 ping)
- * 2. Build the DriverRegistry — registers SMTP or Resend if configured
- * 3. Create the BullMQ queue + worker
- * 4. Set app.set('notifier', ...) so feathers-authentication-management routes
- *    auth events through the queue
- * 5. Store worker + queue on app for graceful shutdown in index.ts
- */
-export async function configureNotifications(app: Application): Promise<void> {
-  const config = app.get('config')
+const AUTH_EVENTS = [
+  'auth.resend-verify-signup',
+  'auth.verify-signup',
+  'auth.verify-signup-set-password',
+  'auth.send-reset-pwd',
+  'auth.reset-pwd',
+  'auth.password-change',
+  'auth.identity-change',
+] as const
 
-  if (!config.redis) {
-    logger.info('Notifications: REDIS_URL not set — using console-log stub')
-    return
-  }
-
-  // 1. Redis connection
-  const redis = new Redis(config.redis.url, { maxRetriesPerRequest: null })
-
-  try {
-    await redis.ping()
-    logger.info('Notifications: Redis connected')
-  } catch (err) {
-    logger.error({ err }, 'Notifications: Redis connection failed')
-    throw err
-  }
-
-  const notifConfig = config.notifications ?? { appUrl: 'http://localhost:3030' }
-
-  // 2. Driver registry
+function buildDriverRegistry(notifConfig: NonNullable<AppConfiguration['notifications']>): DriverRegistry {
   const registry = new DriverRegistry()
-  const AUTH_EVENTS = [
-    'auth.resend-verify-signup',
-    'auth.verify-signup',
-    'auth.verify-signup-set-password',
-    'auth.send-reset-pwd',
-    'auth.reset-pwd',
-    'auth.password-change',
-    'auth.identity-change',
-  ] as const
 
   if (notifConfig.smtp) {
     const smtp = new SMTPDriver({
@@ -104,23 +72,58 @@ export async function configureNotifications(app: Application): Promise<void> {
     logger.info('Notifications: Brevo driver registered')
   }
 
+  return registry
+}
+
+/**
+ * Wire the notifications plugin into the Feathers app.
+ *
+ * Two modes:
+ * - **With Redis**: BullMQ queue + worker for reliable async delivery with retries.
+ *   Best for production. Requires REDIS_URL.
+ * - **Without Redis**: Direct send — drivers are called synchronously in the
+ *   request path. Suitable for development and API-based drivers (Brevo,
+ *   Resend, SendGrid). SMTP should use the queue mode for reliability.
+ *
+ * If no driver env vars are configured at all, falls back to console-log stub.
+ */
+export async function configureNotifications(app: Application): Promise<void> {
+  const config = app.get('config')
+  const notifConfig = config.notifications ?? { appUrl: 'http://localhost:3030' }
+
+  const registry = buildDriverRegistry(notifConfig)
+
   if (registry.listDriverNames().length === 0) {
-    logger.warn(
-      'Notifications: REDIS_URL is set but no email driver configured ' +
-      '(set SMTP_URL or RESEND_API_KEY) — auth emails will be no-ops',
-    )
+    logger.info('Notifications: no email driver configured — using console-log stub')
+    return
   }
 
-  // 3. Queue + worker
-  const queue = createNotificationQueue(redis)
-  const worker = createNotificationWorker(registry, redis, { concurrency: 5 })
+  // With Redis — async delivery via BullMQ
+  if (config.redis) {
+    const redisOpts = { maxRetriesPerRequest: null } as const
+    const queueRedis = new Redis(config.redis.url, redisOpts)
+    const workerRedis = new Redis(config.redis.url, redisOpts)
 
-  // 4. Wire the notifier into feathers-authentication-management
-  app.set('notifier', createBullMQNotifier({ queue, registry, appUrl: notifConfig.appUrl }))
+    try {
+      await queueRedis.ping()
+      logger.info('Notifications: Redis connected')
+    } catch (err) {
+      logger.error({ err }, 'Notifications: Redis connection failed')
+      throw err
+    }
 
-  // 5. Store for graceful shutdown
-  app.set('notificationQueue', queue)
-  app.set('notificationWorker', worker)
+    const queue = createNotificationQueue(queueRedis)
+    const worker = createNotificationWorker(registry, workerRedis, { concurrency: 5 })
 
-  logger.info('Notifications: BullMQ queue and worker started')
+    app.set('notifier', createBullMQNotifier({ queue, registry, appUrl: notifConfig.appUrl }))
+    app.set('notificationQueue', queue)
+    app.set('notificationWorker', worker)
+
+    logger.info('Notifications: BullMQ queue and worker started')
+    return
+  }
+
+  // Without Redis — direct synchronous send
+  app.set('notifier', createDirectNotifier({ registry, appUrl: notifConfig.appUrl }))
+  logger.info('Notifications: direct mode (no Redis) — emails sent synchronously')
 }

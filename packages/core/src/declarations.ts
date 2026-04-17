@@ -24,7 +24,7 @@ export interface ServiceTypes {
 export type AppNotifierFn = (
   type: string,
   user: Record<string, unknown>,
-  notifierOptions: Record<string, unknown>,
+  notifierOptions?: Record<string, unknown>,
 ) => Promise<void>
 
 export interface Configuration {

@@ -108,7 +108,7 @@ export function resolveConfig(): AppConfiguration {
       ? { url: process.env['REDIS_URL'] }
       : undefined,
 
-    notifications: process.env['REDIS_URL']
+    notifications: (process.env['SMTP_URL'] || process.env['RESEND_API_KEY'] || process.env['SENDGRID_API_KEY'] || process.env['BREVO_API_KEY'])
       ? {
           appUrl: process.env['APP_URL'] ?? 'http://localhost:3030',
           smtp: process.env['SMTP_URL']

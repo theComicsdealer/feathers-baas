@@ -14,6 +14,7 @@ import { resolveConfig } from './configuration.js'
 import { logger } from './logger.js'
 import { configureKnex } from './db/index.js'
 import { configureAuth } from './auth/index.js'
+import { configureAuthManagement } from './auth/auth-management.js'
 import { configureServices } from './services/index.js'
 import { configureChannels } from './channels.js'
 import { configureNotifications } from './notifications/index.js'
@@ -55,13 +56,16 @@ export async function createApp(): Promise<Application> {
   // 6. Services
   configureServices(app)
 
-  // 7. Channels (real-time)
+  // 7. Auth management (verification, password reset — depends on users service)
+  configureAuthManagement(app)
+
+  // 8. Channels (real-time)
   configureChannels(app)
 
-  // 8. Notifications (BullMQ queue + driver — no-op when REDIS_URL is absent)
+  // 9. Notifications (BullMQ queue + driver — no-op when REDIS_URL is absent)
   await configureNotifications(app)
 
-  // 9. App-wide error logging hook
+  // 10. App-wide error logging hook
   app.hooks({ around: { all: [logError] } })
 
   logger.debug('App configured')
