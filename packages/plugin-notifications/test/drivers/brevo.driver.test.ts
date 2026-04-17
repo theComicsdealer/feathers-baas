@@ -5,14 +5,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockSendTransacEmail = vi.fn()
 
 vi.mock('@getbrevo/brevo', () => {
-  const apiKeyAuth = { apiKey: '' }
   return {
-    ApiClient: {
-      instance: {
-        authentications: { 'api-key': apiKeyAuth },
-      },
-    },
+    TransactionalEmailsApiApiKeys: { apiKey: 0, partnerKey: 1 },
     TransactionalEmailsApi: vi.fn().mockImplementation(() => ({
+      setApiKey: vi.fn(),
       sendTransacEmail: mockSendTransacEmail,
     })),
     SendSmtpEmail: vi.fn().mockImplementation(() => ({})),
