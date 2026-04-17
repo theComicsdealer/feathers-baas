@@ -2,6 +2,8 @@
 import { Cli, Builtins } from 'clipanion'
 import { GenerateServiceCommand } from './commands/generate-service.js'
 import { GenerateHookCommand } from './commands/generate-hook.js'
+import { DoctorCommand } from './commands/doctor.js'
+import { DescribeCommand } from './commands/describe.js'
 
 const cli = new Cli({
   binaryLabel: 'feathers-baas',
@@ -11,6 +13,8 @@ const cli = new Cli({
 
 cli.register(GenerateServiceCommand)
 cli.register(GenerateHookCommand)
+cli.register(DoctorCommand)
+cli.register(DescribeCommand)
 cli.register(Builtins.HelpCommand)
 cli.register(Builtins.VersionCommand)
 

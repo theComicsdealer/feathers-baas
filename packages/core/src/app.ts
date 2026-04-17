@@ -18,6 +18,8 @@ import { configureAuthManagement } from './auth/auth-management.js'
 import { configureServices } from './services/index.js'
 import { configureChannels } from './channels.js'
 import { configureNotifications } from './notifications/index.js'
+import { configureHealth } from './health.js'
+import { configureOpenApi } from './openapi.js'
 import { logError } from './hooks/log-error.js'
 
 export async function createApp(): Promise<Application> {
@@ -44,28 +46,32 @@ export async function createApp(): Promise<Application> {
   app.use(parseAuthentication())
   app.use(bodyParser())
 
-  // 3. Transports
+  // 3. Health checks + OpenAPI (before auth — no token required)
+  configureHealth(app)
+  configureOpenApi(app)
+
+  // 4. Transports
   app.configure(rest())
 
-  // 4. Database
+  // 5. Database
   await configureKnex(app)
 
-  // 5. Authentication
+  // 6. Authentication
   configureAuth(app)
 
-  // 6. Services
+  // 7. Services
   configureServices(app)
 
-  // 7. Auth management (verification, password reset — depends on users service)
+  // 8. Auth management (verification, password reset — depends on users service)
   configureAuthManagement(app)
 
-  // 8. Channels (real-time)
+  // 9. Channels (real-time)
   configureChannels(app)
 
-  // 9. Notifications (BullMQ queue + driver — no-op when REDIS_URL is absent)
+  // 10. Notifications (BullMQ queue + driver — no-op when REDIS_URL is absent)
   await configureNotifications(app)
 
-  // 10. App-wide error logging hook
+  // 11. App-wide error logging hook
   app.hooks({ around: { all: [logError] } })
 
   logger.debug('App configured')

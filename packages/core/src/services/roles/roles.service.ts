@@ -2,8 +2,20 @@
 import type { Application } from '../../declarations.js'
 import { RolesClass } from './roles.class.js'
 import { rolesHooks } from './roles.hooks.js'
+import { registerServiceSchemas } from '../../openapi.js'
+import { roleSchema, roleDataSchema, rolePatchSchema, roleQuerySchema } from './roles.schema.js'
 
 export type { RolesClass as RolesService }
+
+const methods = ['find', 'get', 'create', 'patch', 'remove']
+
+registerServiceSchemas('roles', {
+  main: roleSchema,
+  data: roleDataSchema,
+  patch: rolePatchSchema,
+  query: roleQuerySchema,
+  methods,
+})
 
 export function configureRoles(app: Application): void {
   const knex = app.get('knex')
@@ -15,7 +27,7 @@ export function configureRoles(app: Application): void {
       app,
     ),
     {
-      methods: ['find', 'get', 'create', 'patch', 'remove'],
+      methods,
       events: [],
     },
   )

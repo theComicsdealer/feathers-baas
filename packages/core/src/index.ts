@@ -17,38 +17,59 @@ logger.info(
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
 
+let shuttingDown = false
+
 async function shutdown(signal: string): Promise<void> {
-  logger.info({ signal }, 'Shutdown signal received')
-
-  server.close(async () => {
-    try {
-      // Drain BullMQ worker first so in-flight jobs complete before closing Redis
-      const worker = app.get('notificationWorker')
-      const queue = app.get('notificationQueue')
-      if (worker) {
-        await worker.close()
-        logger.info('Notification worker drained')
-      }
-      if (queue) {
-        await queue.close()
-        logger.info('Notification queue closed')
-      }
-
-      const knex = app.get('knex')
-      await knex.destroy()
-      logger.info('Database connections closed')
-    } catch (err) {
-      logger.error({ err }, 'Error during shutdown')
-    }
-    logger.info('Server stopped')
-    process.exit(0)
-  })
+  if (shuttingDown) return
+  shuttingDown = true
+  logger.info({ signal }, 'Shutdown signal received — draining connections')
 
   // Force exit after 30 seconds
-  setTimeout(() => {
-    logger.error('Forced shutdown after timeout')
+  const forceTimer = setTimeout(() => {
+    logger.error('Forced shutdown after 30s timeout')
     process.exit(1)
-  }, 30_000).unref()
+  }, 30_000)
+  forceTimer.unref()
+
+  try {
+    // 1. Stop accepting new HTTP connections and drain in-flight requests
+    await new Promise<void>((resolve, reject) => {
+      server.close((err?: Error) => (err ? reject(err) : resolve()))
+    })
+    logger.info('HTTP server closed')
+
+    // 2. Drain BullMQ worker so in-flight jobs complete before closing Redis
+    const worker = app.get('notificationWorker')
+    if (worker) {
+      await worker.close()
+      logger.info('Notification worker drained')
+    }
+
+    // 3. Close BullMQ queue (and its Redis connection)
+    const queue = app.get('notificationQueue')
+    if (queue) {
+      await queue.close()
+      logger.info('Notification queue closed')
+    }
+
+    // 4. Close database connections
+    const knex = app.get('knex')
+    if (knex) {
+      await knex.destroy()
+      logger.info('Knex connections closed')
+    }
+
+    const mongoClient = app.get('mongoClient')
+    if (mongoClient) {
+      await mongoClient.close()
+      logger.info('MongoDB connection closed')
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error during shutdown')
+  }
+
+  logger.info('Server stopped')
+  process.exit(0)
 }
 
 process.on('SIGTERM', () => { void shutdown('SIGTERM') })

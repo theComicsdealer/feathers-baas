@@ -2,14 +2,26 @@
 import type { Application } from '../../declarations.js'
 import { UsersClass } from './users.class.js'
 import { usersHooks } from './users.hooks.js'
+import { registerServiceSchemas } from '../../openapi.js'
+import { userSchema, userDataSchema, userPatchSchema, userQuerySchema } from './users.schema.js'
 
 export type { UsersClass as UsersService }
+
+const methods = ['find', 'get', 'create', 'patch', 'remove']
+
+registerServiceSchemas('users', {
+  main: userSchema,
+  data: userDataSchema,
+  patch: userPatchSchema,
+  query: userQuerySchema,
+  methods,
+})
 
 export function configureUsers(app: Application): void {
   const knex = app.get('knex')
 
   app.use('users', new UsersClass({ Model: knex, name: 'users', paginate: { default: 10, max: 100 } }, app), {
-    methods: ['find', 'get', 'create', 'patch', 'remove'],
+    methods,
     events: [],
   })
 

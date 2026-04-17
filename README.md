@@ -25,14 +25,14 @@ npx feathers-baas init my-api
 
 ## Status
 
-> **M3 complete** — CLI generators and database agnosticism shipped.
+> **M4 complete** — production polish: OpenAPI docs, health checks, Docker, CLI doctor/describe.
 
 | Milestone | Status | What ships |
 |---|---|---|
 | M1 — Skeleton | ✅ Done | Auth, users, roles, Postgres, migrations |
 | M2 — Storage & Notifications | ✅ Done | `plugin-files` (local/S3/GCS) · `plugin-notifications` (SMTP/Resend/SendGrid/Brevo) · auth management (verify email, password reset) |
 | M3 — Generators & DB agnosticism | ✅ Done | `generate service` · `generate hook` · MySQL/SQLite/MongoDB adapters |
-| M4 — Production polish | 📋 Planned | OpenAPI, Docker, health checks, `doctor` |
+| M4 — Production polish | ✅ Done | OpenAPI `/docs` · health checks · Docker · `doctor` · `describe` · `AGENTS.md` |
 | M5 — Plugin system | 📋 Planned | Plugin loader, npm publish |
 
 ---
@@ -361,6 +361,126 @@ Set `MONGODB_URL` and optionally `MONGODB_DB_NAME` in your environment.
 
 ---
 
+## Health Checks
+
+Two endpoints, both bypass authentication:
+
+| Endpoint | Purpose | Response |
+|---|---|---|
+| `GET /health` | Liveness probe | `200 { "status": "ok" }` |
+| `GET /health/ready` | Readiness probe | `200` or `503` with check details |
+
+The readiness endpoint checks database connectivity and Redis (if configured):
+
+```bash
+curl -s http://localhost:3030/health/ready | jq .
+```
+
+```json
+{
+  "status": "ok",
+  "checks": [
+    { "name": "database", "status": "ok" },
+    { "name": "redis", "status": "ok" }
+  ]
+}
+```
+
+Returns `503` with `"status": "degraded"` if any check fails — ideal for Kubernetes probes.
+
+---
+
+## OpenAPI & Swagger UI
+
+API documentation is auto-generated from TypeBox schemas and served at runtime:
+
+| Endpoint | Description |
+|---|---|
+| `GET /openapi.json` | OpenAPI 3.1 spec (JSON) |
+| `GET /docs` | Interactive Swagger UI (Scalar) |
+
+The spec includes all registered services with their CRUD operations, request/response schemas, and JWT auth. New services added via `generate service` are automatically included when they register their schemas with `registerServiceSchemas()`.
+
+---
+
+## Docker
+
+Docker templates are included for production deployment:
+
+| File | Description |
+|---|---|
+| `Dockerfile` | Multi-stage build (Node 20 Alpine, non-root user) |
+| `docker-compose.yml` | App + Postgres + Redis |
+| `.dockerignore` | Excludes dev files, tests, env files |
+
+```bash
+# Build and run with Docker Compose
+docker compose up -d
+
+# Or build standalone
+docker build -t my-api .
+docker run -p 3030:3030 --env-file .env my-api
+```
+
+The `docker-compose.yml` includes health checks on Postgres and Redis — the app container waits for both to be ready before starting.
+
+---
+
+## CLI Commands
+
+| Command | Description |
+|---|---|
+| `generate service` | Generate a service (schema, class, hooks, migration) |
+| `generate hook` | Generate a typed hook function |
+| `doctor` | Check project health (env vars, DB, versions) |
+| `describe` | Introspect services, methods, hooks (JSON for agents) |
+
+### `feathers-baas doctor`
+
+Validates your project setup:
+
+```bash
+npx feathers-baas doctor
+```
+
+```
+ℹ Checking project at /path/to/project
+
+✔ env-file: .env file exists
+✔ database-url: Database connection configured
+✔ jwt-secret: JWT_SECRET is set (32+ chars)
+✔ version-consistency: All @feathersjs/* packages at ^5.0.30
+✔ migrations: Migrations directory exists
+
+✔ All checks passed!
+```
+
+Use `--json` for machine-readable output.
+
+### `feathers-baas describe`
+
+Outputs a JSON description of your project for AI agent consumption:
+
+```bash
+npx feathers-baas describe
+```
+
+```json
+{
+  "name": "@feathers-baas/core",
+  "version": "0.0.1",
+  "services": [
+    { "name": "users", "path": "/users", "methods": ["find","get","create","patch","remove"], "files": [...] },
+    { "name": "roles", "path": "/roles", "methods": ["find","get","create","patch","remove"], "files": [...] }
+  ],
+  "hooks": ["authenticate", "permission-check", "log-error"],
+  "migrations": ["001_create_users.ts", "002_create_roles.ts", ...],
+  "database": "postgresql"
+}
+```
+
+---
+
 ## Notifications (`@feathers-baas/plugin-notifications`)
 
 ### How it works
@@ -655,14 +775,16 @@ The app bootstraps in a strict order — each step depends on the previous:
  1. resolveConfig()              — TypeBox schema validation, fail-fast on bad env
  2. cors + errorHandler()        — outermost Koa middleware (wraps everything below)
  3. bodyParser                   — parse JSON bodies
- 4. rest()                       — Koa HTTP transport
- 5. configureKnex()              — Postgres connection (SELECT 1 health check)
- 6. configureAuth()              — JWT + local strategies (argon2id)
- 7. configureServices()          — users, roles
- 8. configureAuthManagement()    — email verification, password reset (depends on users service)
- 9. configureChannels()          — real-time channel setup
-10. configureNotifications()     — email drivers + optional BullMQ queue
-11. logError around hook         — global error logging
+ 4. configureHealth()            — /health + /health/ready (before auth)
+ 5. configureOpenApi()           — /openapi.json + /docs (before auth)
+ 6. rest()                       — Koa HTTP transport
+ 7. configureKnex()              — database connection (SELECT 1 health check)
+ 8. configureAuth()              — JWT + local strategies (argon2id)
+ 9. configureServices()          — users, roles
+10. configureAuthManagement()    — email verification, password reset (depends on users service)
+11. configureChannels()          — real-time channel setup
+12. configureNotifications()     — email drivers + optional BullMQ queue
+13. logError around hook         — global error logging
 ```
 
 `errorHandler` must be registered before `rest()` so it wraps the REST transport in Koa's onion model — this is what translates Feathers errors (e.g. `NotAuthenticated`) into correct HTTP status codes (401, 403, etc.) instead of 500.
@@ -690,6 +812,18 @@ Only top-level result row keys are converted. JSONB field contents (`permissions
 ### RBAC
 
 Permissions are stored as JSONB on the `roles` table — no join table. Role names are denormalized onto `users.roles` (a Postgres `text[]` column with a GIN index). The permission check hook uses an LRU cache (5-minute TTL) so role documents are not fetched from the DB on every request.
+
+### Graceful shutdown
+
+On `SIGTERM`/`SIGINT`, the process shuts down in order:
+
+1. Stop accepting new HTTP connections, drain in-flight requests
+2. Drain BullMQ notification worker (in-flight jobs complete)
+3. Close BullMQ queue and Redis connections
+4. Close database connections (Knex or MongoDB)
+5. Exit
+
+If shutdown takes longer than 30 seconds, the process force-exits with code 1. The shutdown handler is idempotent — duplicate signals are ignored.
 
 ### Security defaults
 
