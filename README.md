@@ -10,7 +10,7 @@ npx feathers-baas init my-api
 
 ## Why
 
-Feathers.js is the most under-appreciated Node backend framework for the agentic-coding era. Its service-oriented model maps 1:1 to how LLMs reason about CRUD APIs. `feathers-baas` exposes that as a turnkey product.
+[Feathers.js](https://feathersjs.com) is the most under-appreciated Node backend framework for the agentic-coding era. Its service-oriented model maps 1:1 to how LLMs reason about CRUD APIs. `feathers-baas` exposes that as a turnkey product.
 
 |                    | Supabase        | Firebase | Pocketbase   | **feathers-baas** |
 |--------------------|-----------------|----------|--------------|-------------------|
