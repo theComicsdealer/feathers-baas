@@ -25,12 +25,12 @@ Feathers.js is the most under-appreciated Node backend framework for the agentic
 
 ## Status
 
-> **M1 complete** — runnable Feathers.js v5 app with Postgres, JWT auth, users, and RBAC roles.
+> **M2 in progress** — file storage plugin shipped; notifications plugin coming next.
 
 | Milestone | Status | What ships |
 |---|---|---|
 | M1 — Skeleton | ✅ Done | Auth, users, roles, Postgres, migrations |
-| M2 — Storage & Notifications | 🔜 Next | Files (S3/GCS/local), email + BullMQ queue |
+| M2 — Storage & Notifications | 🔄 In progress | `plugin-files` ✅ · `plugin-notifications` 📋 |
 | M3 — Generators & DB agnosticism | 📋 Planned | `generate service`, MySQL/SQLite/MongoDB |
 | M4 — Production polish | 📋 Planned | OpenAPI, Docker, health checks, `doctor` |
 | M5 — Plugin system | 📋 Planned | Plugin loader, npm publish |
@@ -42,11 +42,12 @@ Feathers.js is the most under-appreciated Node backend framework for the agentic
 ```
 feathers-baas/
 ├── packages/
-│   ├── core/          # @feathers-baas/core — the Feathers app factory
-│   └── cli/           # feathers-baas — the npx-able CLI (M1 CLI in progress)
-├── PLAN.md            # Full implementation plan
+│   ├── core/            # @feathers-baas/core — the Feathers app factory
+│   ├── plugin-files/    # @feathers-baas/plugin-files — file storage (local/S3/GCS)
+│   └── cli/             # feathers-baas — the npx-able CLI (in progress)
+├── PLAN.md              # Full implementation plan
 ├── .claude/
-│   ├── PRD.md         # Product requirements
+│   ├── PRD.md           # Product requirements
 │   └── DESIGN_DECISIONS.md
 └── pnpm-workspace.yaml
 ```
@@ -196,6 +197,117 @@ curl -s http://localhost:3030/roles \
 
 ---
 
+## File storage (`@feathers-baas/plugin-files`)
+
+### Installation
+
+```bash
+pnpm add @feathers-baas/plugin-files
+```
+
+### Setup
+
+Call `configureFiles` in your app bootstrap **after** `configureKnex` and `configureAuth`:
+
+```ts
+import { configureFiles, LocalDriver } from '@feathers-baas/plugin-files'
+
+configureFiles(app, {
+  driver: new LocalDriver({
+    directory: './uploads',
+    jwtSecret: config.jwtSecret,
+    baseUrl: 'http://localhost:3030',
+  }),
+  driverType: 'local',
+  bucket: 'uploads',
+  maxFileSize: 52_428_800,           // 50 MB (default)
+  allowedMimeTypes: ['image/png', 'image/jpeg', 'application/pdf'], // optional
+})
+```
+
+Run the migration after adding the plugin:
+
+```bash
+pnpm db:migrate
+```
+
+### Drivers
+
+| Driver | Class | When to use |
+|---|---|---|
+| Local filesystem | `LocalDriver` | Development, single-node deployments |
+| AWS S3 (+ MinIO, LocalStack) | `S3Driver` | Production, multi-node |
+| Google Cloud Storage | `GCSDriver` | Production on GCP |
+
+**S3Driver** — works with any S3-compatible endpoint (MinIO, LocalStack):
+
+```ts
+import { S3Driver } from '@feathers-baas/plugin-files'
+
+new S3Driver({
+  bucket: 'my-bucket',
+  region: 'us-east-1',
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  // endpoint: 'http://localhost:9000',  // MinIO
+  // forcePathStyle: true,               // required for MinIO
+})
+```
+
+**GCSDriver**:
+
+```ts
+import { GCSDriver } from '@feathers-baas/plugin-files'
+
+new GCSDriver({
+  bucket: 'my-gcs-bucket',
+  // keyFilename: '/path/to/service-account.json',  // or use ADC
+})
+```
+
+### Uploading a file
+
+Send a `multipart/form-data` POST to `/files` with a JWT in the `Authorization` header:
+
+```bash
+curl -s -X POST http://localhost:3030/files \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@photo.jpg" | jq .
+```
+
+Expected response:
+
+```json
+{
+  "id": "...",
+  "key": "3f2a...jpg",
+  "bucket": "uploads",
+  "driver": "local",
+  "mimeType": "image/jpeg",
+  "size": 204800,
+  "originalName": "photo.jpg",
+  "uploadedBy": "...",
+  "metadata": {},
+  "createdAt": "..."
+}
+```
+
+Only the `metadata` field is patchable after upload — all other fields are immutable. Deleting a file record also deletes the binary from the driver.
+
+### File storage API
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/files` | Upload a file (`multipart/form-data`) |
+| `GET` | `/files` | List file records (paginated) |
+| `GET` | `/files/:id` | Get a file record |
+| `PATCH` | `/files/:id` | Update metadata |
+| `DELETE` | `/files/:id` | Delete record + binary |
+
+All endpoints require a valid JWT. Uploads are streamed directly to the driver — no temporary buffering.
+
+---
+
 ## API
 
 ### Services
@@ -276,15 +388,17 @@ The app bootstraps in a strict order — each step depends on the previous:
 
 ```
 1. resolveConfig()          — TypeBox schema validation, fail-fast on bad env
-2. cors + bodyParser        — security middleware
-3. rest()                   — Koa HTTP transport
-4. configureKnex()          — Postgres connection (SELECT 1 health check)
-5. configureAuth()          — JWT + local strategies (argon2id)
-6. configureServices()      — users, roles
-7. configureChannels()      — real-time channel setup
-8. errorHandler()           — terminal middleware
+2. cors + errorHandler()    — outermost Koa middleware (wraps everything below)
+3. bodyParser               — parse JSON bodies
+4. rest()                   — Koa HTTP transport
+5. configureKnex()          — Postgres connection (SELECT 1 health check)
+6. configureAuth()          — JWT + local strategies (argon2id)
+7. configureServices()      — users, roles
+8. configureChannels()      — real-time channel setup
 9. logError around hook     — global error logging
 ```
+
+`errorHandler` must be registered before `rest()` so it wraps the REST transport in Koa's onion model — this is what translates Feathers errors (e.g. `NotAuthenticated`) into correct HTTP status codes (401, 403, etc.) instead of 500.
 
 ### Service anatomy
 
@@ -296,6 +410,15 @@ users.class.ts    — KnexService subclass
 users.hooks.ts    — before/after/error hook chains
 users.service.ts  — wires class + hooks, mounts on app
 ```
+
+### camelCase ↔ snake_case
+
+The database uses snake_case column names (`created_at`, `is_verified`, `deleted_at`, …) while TypeScript schemas use camelCase. Conversion is handled transparently at the Knex level via two standard Knex options in `db/knex.ts`:
+
+- **`wrapIdentifier`** — converts camelCase field names in outgoing queries to snake_case before they hit the DB.
+- **`postProcessResponse`** — converts snake_case column names in result rows back to camelCase before returning them to the service layer.
+
+Only top-level result row keys are converted. JSONB field contents (`permissions`, `metadata`, `oauthIds`) are left as-is.
 
 ### RBAC
 
@@ -341,6 +464,8 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | Database | Knex + `pg` (Postgres) |
 | Validation | TypeBox (`@feathersjs/typebox`) |
 | Auth | `@feathersjs/authentication` + argon2id |
+| File storage | `@feathers-baas/plugin-files` — local / S3 / GCS |
+| Multipart parsing | `busboy` (streaming, no temp files) |
 | Logging | pino |
 | Testing | Vitest |
 | Build | tsup |

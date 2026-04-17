@@ -3,6 +3,18 @@ import knexLib, { type Knex } from 'knex'
 import type { Application } from '../declarations.js'
 import { logger } from '../logger.js'
 
+// Convert camelCase identifiers (column/table names in queries) to snake_case
+// so JS camelCase field names map to snake_case DB columns transparently.
+const toSnakeCase = (s: string): string => s.replace(/([A-Z])/g, (c) => `_${c.toLowerCase()}`)
+
+// Convert snake_case column names in DB results back to camelCase.
+// Only top-level row keys are converted — JSONB field contents are left as-is.
+const toCamelCase = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+
+function camelizeRow(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [toCamelCase(k), v]))
+}
+
 let _client: Knex | undefined
 
 export function createKnexClient(databaseUrl: string): Knex {
@@ -13,6 +25,18 @@ export function createKnexClient(databaseUrl: string): Knex {
     connection: databaseUrl,
     pool: { min: 2, max: 10 },
     acquireConnectionTimeout: 10_000,
+    wrapIdentifier: (value, origImpl) => origImpl(toSnakeCase(value)),
+    postProcessResponse: (result) => {
+      if (Array.isArray(result)) {
+        return result.map((row) =>
+          row !== null && typeof row === 'object' ? camelizeRow(row as Record<string, unknown>) : row,
+        )
+      }
+      if (result !== null && typeof result === 'object') {
+        return camelizeRow(result as Record<string, unknown>)
+      }
+      return result
+    },
   })
 
   return _client

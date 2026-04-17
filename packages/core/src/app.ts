@@ -37,6 +37,7 @@ export async function createApp(): Promise<Application> {
       },
     }),
   )
+  app.use(errorHandler())
   app.use(serveStatic('.'))
   app.use(parseAuthentication())
   app.use(bodyParser())
@@ -56,10 +57,7 @@ export async function createApp(): Promise<Application> {
   // 7. Channels (real-time)
   configureChannels(app)
 
-  // 8. Terminal middleware
-  app.use(errorHandler())
-
-  // 9. App-wide error logging hook
+  // 8. App-wide error logging hook
   app.hooks({ around: { all: [logError] } })
 
   logger.debug('App configured')
