@@ -30,7 +30,7 @@ Feathers.js is the most under-appreciated Node backend framework for the agentic
 | Milestone | Status | What ships |
 |---|---|---|
 | M1 — Skeleton | ✅ Done | Auth, users, roles, Postgres, migrations |
-| M2 — Storage & Notifications | ✅ Done | `plugin-files` (local/S3/GCS) · `plugin-notifications` (SMTP/Resend + BullMQ) |
+| M2 — Storage & Notifications | ✅ Done | `plugin-files` (local/S3/GCS) · `plugin-notifications` (SMTP/Resend/SendGrid/Brevo) · auth management (verify email, password reset) |
 | M3 — Generators & DB agnosticism | 📋 Planned | `generate service`, MySQL/SQLite/MongoDB |
 | M4 — Production polish | 📋 Planned | OpenAPI, Docker, health checks, `doctor` |
 | M5 — Plugin system | 📋 Planned | Plugin loader, npm publish |
@@ -198,28 +198,95 @@ curl -s http://localhost:3030/roles \
 
 ---
 
+## Auth Management
+
+Built on [`feathers-authentication-management`](https://github.com/feathersjs-ecosystem/feathers-authentication-management), the `authManagement` service handles the full lifecycle of email verification and password reset — no custom code needed.
+
+### How it works
+
+1. **User registers** (`POST /users`) — the `addVerification` hook injects a `verifyToken` and sets `isVerified: false` before the user is saved. A verification email is sent automatically via the configured notification driver.
+
+2. **User clicks the verification link** — your frontend extracts the token from the URL and calls:
+
+```bash
+curl -s -X POST http://localhost:3030/authManagement \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"verifySignupLong","value":"<verifyToken>"}' | jq .
+```
+
+3. **The service verifies the token**, checks it hasn't expired, and sets `isVerified: true`.
+
+### Supported actions
+
+| Action | Method | Description |
+|---|---|---|
+| `verifySignupLong` | POST `/authManagement` | Verify email with the long token from the link |
+| `verifySignupShort` | POST `/authManagement` | Verify email with a short token (e.g. 6-digit code) |
+| `resendVerifySignup` | POST `/authManagement` | Re-send the verification email |
+| `sendResetPwd` | POST `/authManagement` | Send a password reset email |
+| `resetPwdLong` | POST `/authManagement` | Reset password using the long token |
+| `resetPwdShort` | POST `/authManagement` | Reset password using a short token |
+| `passwordChange` | POST `/authManagement` | Change password (requires current password) |
+| `identityChange` | POST `/authManagement` | Change email address (requires password) |
+
+### Password reset flow
+
+```bash
+# 1. Request a reset email
+curl -s -X POST http://localhost:3030/authManagement \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"sendResetPwd","value":{"email":"user@example.com"}}' | jq .
+
+# 2. User clicks the reset link → your frontend extracts the token and new password
+curl -s -X POST http://localhost:3030/authManagement \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"resetPwdLong","value":{"token":"<resetToken>","password":"newPassword123"}}' | jq .
+```
+
+### Verification fields on the user record
+
+These fields are managed automatically — they are **never exposed in API responses** (stripped by the `removeVerification` after-hook):
+
+| Field | Type | Purpose |
+|---|---|---|
+| `isVerified` | `boolean` | Whether the user's email is verified |
+| `verifyToken` | `string` | Long token sent in verification emails |
+| `verifyShortToken` | `string` | Short token (e.g. 6-digit code) |
+| `verifyExpires` | `timestamp` | When the verification token expires |
+| `verifyChanges` | `jsonb` | Pending identity changes |
+| `resetToken` | `string` | Long token sent in password reset emails |
+| `resetShortToken` | `string` | Short token for password reset |
+| `resetExpires` | `timestamp` | When the reset token expires |
+| `resetAttempts` | `integer` | Number of reset attempts |
+
+> **Note:** `isVerified` is returned in user responses. All token fields are stripped.
+
+---
+
 ## Notifications (`@feathers-baas/plugin-notifications`)
 
 ### How it works
 
-Auth events (verify email, reset password, etc.) are queued as BullMQ jobs. A worker picks them up and delivers via the configured driver. If Redis is not configured, auth events are logged to console and never sent — no configuration required to get the app running.
+Auth events (verify email, reset password, etc.) are routed through the notification system. Two delivery modes are supported:
+
+- **Direct mode** (no Redis) — drivers are called synchronously in the request path. Suitable for development and API-based drivers (Brevo, Resend, SendGrid).
+- **Queue mode** (with Redis) — jobs are enqueued in BullMQ with automatic retries and exponential backoff. Best for production and SMTP.
 
 ```
-Auth event → notifier fn → BullMQ queue (Redis) → Worker → SMTP | Resend | SendGrid | Brevo
+# Direct mode (no Redis)
+Auth event → notifier fn → Driver → Brevo | Resend | SendGrid | SMTP
+
+# Queue mode (with Redis)
+Auth event → notifier fn → BullMQ queue → Worker → Driver
 ```
+
+If no driver env vars are configured at all, auth events are logged to console.
 
 ### Setup
 
-**1. Start Redis** (Docker):
-
-```bash
-docker run --rm -d --name feathers-baas-redis -p 6379:6379 redis:7
-```
-
-**2. Add env vars** to `packages/core/.env`:
+**1. Add driver env vars** to `packages/core/.env`:
 
 ```env
-REDIS_URL=redis://localhost:6379
 APP_URL=http://localhost:3030
 
 # Pick one (or more) email drivers — all configured drivers receive every event:
@@ -245,11 +312,26 @@ BREVO_FROM_NAME=feathers-baas
 BREVO_FROM_ADDRESS=no-reply@yourdomain.com
 ```
 
-**3. Restart the server** — the app auto-detects Redis and wires everything on boot:
+That's it — restart the server and emails will be sent in direct mode:
+
+```
+[INFO]: Notifications: Brevo driver registered
+[INFO]: Notifications: direct mode (no Redis) — emails sent synchronously
+```
+
+**2. (Optional) Add Redis** for queue mode with retries:
+
+```bash
+docker run --rm -d --name feathers-baas-redis -p 6379:6379 redis:7
+```
+
+```env
+REDIS_URL=redis://localhost:6379
+```
 
 ```
 [INFO]: Notifications: Redis connected
-[INFO]: Notifications: SMTP driver registered      # or Resend
+[INFO]: Notifications: Brevo driver registered
 [INFO]: Notifications: BullMQ queue and worker started
 ```
 
@@ -266,7 +348,7 @@ BREVO_FROM_ADDRESS=no-reply@yourdomain.com
 
 ### Graceful shutdown
 
-The BullMQ worker is drained before the process exits — in-flight jobs complete before Redis disconnects.
+When Redis is configured, the BullMQ worker is drained before the process exits — in-flight jobs complete before Redis disconnects.
 
 ### Email drivers
 
@@ -398,13 +480,14 @@ All endpoints require a valid JWT. Uploads are streamed directly to the driver �
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/users` | Register a new user |
+| `POST` | `/users` | Register a new user (sends verification email) |
 | `GET` | `/users` | List users (admin only) |
 | `GET` | `/users/:id` | Get a user |
 | `PATCH` | `/users/:id` | Update a user |
 | `DELETE` | `/users/:id` | Delete a user |
 | `POST` | `/authentication` | Login (returns JWT) |
 | `DELETE` | `/authentication` | Logout |
+| `POST` | `/authManagement` | Auth actions: verify email, reset password, etc. |
 | `GET` | `/roles` | List roles (admin only) |
 | `POST` | `/roles` | Create a role (admin only) |
 | `PATCH` | `/roles/:id` | Update a role (admin only) |
@@ -471,15 +554,17 @@ pnpm build
 The app bootstraps in a strict order — each step depends on the previous:
 
 ```
-1. resolveConfig()          — TypeBox schema validation, fail-fast on bad env
-2. cors + errorHandler()    — outermost Koa middleware (wraps everything below)
-3. bodyParser               — parse JSON bodies
-4. rest()                   — Koa HTTP transport
-5. configureKnex()          — Postgres connection (SELECT 1 health check)
-6. configureAuth()          — JWT + local strategies (argon2id)
-7. configureServices()      — users, roles
-8. configureChannels()      — real-time channel setup
-9. logError around hook     — global error logging
+ 1. resolveConfig()              — TypeBox schema validation, fail-fast on bad env
+ 2. cors + errorHandler()        — outermost Koa middleware (wraps everything below)
+ 3. bodyParser                   — parse JSON bodies
+ 4. rest()                       — Koa HTTP transport
+ 5. configureKnex()              — Postgres connection (SELECT 1 health check)
+ 6. configureAuth()              — JWT + local strategies (argon2id)
+ 7. configureServices()          — users, roles
+ 8. configureAuthManagement()    — email verification, password reset (depends on users service)
+ 9. configureChannels()          — real-time channel setup
+10. configureNotifications()     — email drivers + optional BullMQ queue
+11. logError around hook         — global error logging
 ```
 
 `errorHandler` must be registered before `rest()` so it wraps the REST transport in Koa's onion model — this is what translates Feathers errors (e.g. `NotAuthenticated`) into correct HTTP status codes (401, 403, etc.) instead of 500.
@@ -561,7 +646,7 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | HTTP | Koa (`@feathersjs/koa`) |
 | Database | Knex + `pg` (Postgres) |
 | Validation | TypeBox (`@feathersjs/typebox`) |
-| Auth | `@feathersjs/authentication` + argon2id |
+| Auth | `@feathersjs/authentication` + argon2id + `feathers-authentication-management` |
 | File storage | `@feathers-baas/plugin-files` — local / S3 / GCS |
 | Multipart parsing | `busboy` (streaming, no temp files) |
 | Notifications | `@feathers-baas/plugin-notifications` — BullMQ + SMTP / Resend / SendGrid / Brevo |
