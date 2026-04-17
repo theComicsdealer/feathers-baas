@@ -16,6 +16,7 @@ import { configureKnex } from './db/index.js'
 import { configureAuth } from './auth/index.js'
 import { configureServices } from './services/index.js'
 import { configureChannels } from './channels.js'
+import { configureNotifications } from './notifications/index.js'
 import { logError } from './hooks/log-error.js'
 
 export async function createApp(): Promise<Application> {
@@ -57,7 +58,10 @@ export async function createApp(): Promise<Application> {
   // 7. Channels (real-time)
   configureChannels(app)
 
-  // 8. App-wide error logging hook
+  // 8. Notifications (BullMQ queue + driver — no-op when REDIS_URL is absent)
+  await configureNotifications(app)
+
+  // 9. App-wide error logging hook
   app.hooks({ around: { all: [logError] } })
 
   logger.debug('App configured')

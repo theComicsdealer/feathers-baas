@@ -22,6 +22,18 @@ async function shutdown(signal: string): Promise<void> {
 
   server.close(async () => {
     try {
+      // Drain BullMQ worker first so in-flight jobs complete before closing Redis
+      const worker = app.get('notificationWorker')
+      const queue = app.get('notificationQueue')
+      if (worker) {
+        await worker.close()
+        logger.info('Notification worker drained')
+      }
+      if (queue) {
+        await queue.close()
+        logger.info('Notification queue closed')
+      }
+
       const knex = app.get('knex')
       await knex.destroy()
       logger.info('Database connections closed')

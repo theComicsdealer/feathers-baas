@@ -13,6 +13,10 @@ export { SMTPDriver } from './drivers/smtp.driver.js'
 export type { SMTPDriverOptions } from './drivers/smtp.driver.js'
 export { ResendDriver } from './drivers/resend.driver.js'
 export type { ResendDriverOptions } from './drivers/resend.driver.js'
+export { SendGridDriver } from './drivers/sendgrid.driver.js'
+export type { SendGridDriverOptions } from './drivers/sendgrid.driver.js'
+export { BrevoDriver } from './drivers/brevo.driver.js'
+export type { BrevoDriverOptions } from './drivers/brevo.driver.js'
 
 // Types
 export type {

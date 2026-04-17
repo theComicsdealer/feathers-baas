@@ -2,9 +2,11 @@
 import type { Knex } from 'knex'
 import type { Application as KoaApplication } from '@feathersjs/koa'
 import type { AuthenticationService } from '@feathersjs/authentication'
+import type { Worker, Queue } from 'bullmq'
 import type { AppConfiguration } from './configuration.js'
 import type { UsersClass } from './services/users/users.class.js'
 import type { RolesClass } from './services/roles/roles.class.js'
+import type { NotificationJob } from '@feathers-baas/plugin-notifications'
 
 export type { AppConfiguration }
 
@@ -35,6 +37,16 @@ export interface Configuration {
    * Falls back to console-logging stub when not configured.
    */
   notifier?: AppNotifierFn
+  /**
+   * BullMQ worker — set when REDIS_URL is configured.
+   * Call worker.close() during graceful shutdown.
+   */
+  notificationWorker?: Worker<NotificationJob>
+  /**
+   * BullMQ queue — set when REDIS_URL is configured.
+   * Call queue.close() during graceful shutdown.
+   */
+  notificationQueue?: Queue<NotificationJob>
 }
 
 // Application is the @feathersjs/koa Application with our typed services and config

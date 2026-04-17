@@ -25,12 +25,12 @@ Feathers.js is the most under-appreciated Node backend framework for the agentic
 
 ## Status
 
-> **M2 in progress** — file storage plugin shipped; notifications plugin coming next.
+> **M2 complete** — file storage (local/S3/GCS) and BullMQ-backed email notifications shipped.
 
 | Milestone | Status | What ships |
 |---|---|---|
 | M1 — Skeleton | ✅ Done | Auth, users, roles, Postgres, migrations |
-| M2 — Storage & Notifications | 🔄 In progress | `plugin-files` ✅ · `plugin-notifications` 📋 |
+| M2 — Storage & Notifications | ✅ Done | `plugin-files` (local/S3/GCS) · `plugin-notifications` (SMTP/Resend + BullMQ) |
 | M3 — Generators & DB agnosticism | 📋 Planned | `generate service`, MySQL/SQLite/MongoDB |
 | M4 — Production polish | 📋 Planned | OpenAPI, Docker, health checks, `doctor` |
 | M5 — Plugin system | 📋 Planned | Plugin loader, npm publish |
@@ -42,9 +42,10 @@ Feathers.js is the most under-appreciated Node backend framework for the agentic
 ```
 feathers-baas/
 ├── packages/
-│   ├── core/            # @feathers-baas/core — the Feathers app factory
-│   ├── plugin-files/    # @feathers-baas/plugin-files — file storage (local/S3/GCS)
-│   └── cli/             # feathers-baas — the npx-able CLI (in progress)
+│   ├── core/                    # @feathers-baas/core — the Feathers app factory
+│   ├── plugin-files/            # @feathers-baas/plugin-files — file storage (local/S3/GCS)
+│   ├── plugin-notifications/    # @feathers-baas/plugin-notifications — BullMQ email queue
+│   └── cli/                     # feathers-baas — the npx-able CLI (in progress)
 ├── PLAN.md              # Full implementation plan
 ├── .claude/
 │   ├── PRD.md           # Product requirements
@@ -194,6 +195,89 @@ curl -s http://localhost:3030/roles \
 | `GET /users` with regular user token | 403 Forbidden (user role has no `find` permission) |
 | `GET /users` with admin token | 200 paginated list |
 | `GET /roles` with admin token | 200 list of roles with permissions |
+
+---
+
+## Notifications (`@feathers-baas/plugin-notifications`)
+
+### How it works
+
+Auth events (verify email, reset password, etc.) are queued as BullMQ jobs. A worker picks them up and delivers via the configured driver. If Redis is not configured, auth events are logged to console and never sent — no configuration required to get the app running.
+
+```
+Auth event → notifier fn → BullMQ queue (Redis) → Worker → SMTP | Resend | SendGrid | Brevo
+```
+
+### Setup
+
+**1. Start Redis** (Docker):
+
+```bash
+docker run --rm -d --name feathers-baas-redis -p 6379:6379 redis:7
+```
+
+**2. Add env vars** to `packages/core/.env`:
+
+```env
+REDIS_URL=redis://localhost:6379
+APP_URL=http://localhost:3030
+
+# Pick one (or more) email drivers — all configured drivers receive every event:
+
+# Option A — SMTP (Mailtrap, Postfix, etc.)
+SMTP_URL=smtp://user:pass@localhost:1025
+SMTP_FROM_NAME=feathers-baas
+SMTP_FROM_ADDRESS=no-reply@example.com
+
+# Option B — Resend
+RESEND_API_KEY=re_xxxxxxxxxxxx
+RESEND_FROM_NAME=feathers-baas
+RESEND_FROM_ADDRESS=no-reply@yourdomain.com
+
+# Option C — SendGrid
+SENDGRID_API_KEY=SG.xxxxxxxxxxxx
+SENDGRID_FROM_NAME=feathers-baas
+SENDGRID_FROM_ADDRESS=no-reply@yourdomain.com
+
+# Option D — Brevo
+BREVO_API_KEY=xkeysib-xxxxxxxxxxxx
+BREVO_FROM_NAME=feathers-baas
+BREVO_FROM_ADDRESS=no-reply@yourdomain.com
+```
+
+**3. Restart the server** — the app auto-detects Redis and wires everything on boot:
+
+```
+[INFO]: Notifications: Redis connected
+[INFO]: Notifications: SMTP driver registered      # or Resend
+[INFO]: Notifications: BullMQ queue and worker started
+```
+
+### Auth emails sent automatically
+
+| Auth event | Trigger |
+|---|---|
+| Verify email | User registers |
+| Resend verification | User requests re-send |
+| Reset password | User requests reset |
+| Password changed | After successful reset |
+| Password changed | After manual password update |
+| Email change | Identity change request |
+
+### Graceful shutdown
+
+The BullMQ worker is drained before the process exits — in-flight jobs complete before Redis disconnects.
+
+### Email drivers
+
+| Driver | Class | Env var | When to use |
+|---|---|---|---|
+| SMTP | `SMTPDriver` | `SMTP_URL` | Self-hosted SMTP, Mailtrap, Postfix |
+| Resend | `ResendDriver` | `RESEND_API_KEY` | Managed transactional email |
+| SendGrid | `SendGridDriver` | `SENDGRID_API_KEY` | Twilio SendGrid |
+| Brevo | `BrevoDriver` | `BREVO_API_KEY` | Brevo (formerly Sendinblue) |
+
+All configured drivers are active simultaneously — every auth event is delivered via each registered driver.
 
 ---
 
@@ -451,6 +535,20 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | `ADMIN_PASSWORD` | | — | Bootstrap admin password (seed only) |
 | `ARGON2_MEMORY_COST` | | `65536` | argon2 memory cost (KiB) |
 | `ARGON2_TIME_COST` | | `3` | argon2 iterations |
+| `REDIS_URL` | | — | Redis connection string — enables BullMQ notification queue |
+| `APP_URL` | | `http://localhost:3030` | Public base URL used in email links |
+| `SMTP_URL` | | — | SMTP connection URL (enables SMTP driver) |
+| `SMTP_FROM_NAME` | | `feathers-baas` | SMTP sender display name |
+| `SMTP_FROM_ADDRESS` | | — | SMTP verified sender address |
+| `RESEND_API_KEY` | | — | Resend API key (enables Resend driver) |
+| `RESEND_FROM_NAME` | | `feathers-baas` | Resend sender display name |
+| `RESEND_FROM_ADDRESS` | | — | Resend verified sender address |
+| `SENDGRID_API_KEY` | | — | SendGrid API key (enables SendGrid driver) |
+| `SENDGRID_FROM_NAME` | | `feathers-baas` | SendGrid sender display name |
+| `SENDGRID_FROM_ADDRESS` | | — | SendGrid verified sender address |
+| `BREVO_API_KEY` | | — | Brevo API key (enables Brevo driver) |
+| `BREVO_FROM_NAME` | | `feathers-baas` | Brevo sender display name |
+| `BREVO_FROM_ADDRESS` | | — | Brevo verified sender address |
 
 ---
 
@@ -466,6 +564,8 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | Auth | `@feathersjs/authentication` + argon2id |
 | File storage | `@feathers-baas/plugin-files` — local / S3 / GCS |
 | Multipart parsing | `busboy` (streaming, no temp files) |
+| Notifications | `@feathers-baas/plugin-notifications` — BullMQ + SMTP / Resend / SendGrid / Brevo |
+| Queue | BullMQ + ioredis (Redis) |
 | Logging | pino |
 | Testing | Vitest |
 | Build | tsup |

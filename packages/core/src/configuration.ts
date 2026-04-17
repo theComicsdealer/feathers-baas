@@ -31,6 +31,40 @@ const AppConfigurationSchema = Type.Object({
 
   adminEmail: Type.Optional(Type.String()),
   adminPassword: Type.Optional(Type.String()),
+
+  // ─── Notifications (optional — omit to use the console-log stub) ─────────────
+  redis: Type.Optional(Type.Object({
+    url: Type.String({ minLength: 1 }),
+  })),
+
+  notifications: Type.Optional(Type.Object({
+    /** Public base URL passed into verification/reset email links. */
+    appUrl: Type.String({ default: 'http://localhost:3030' }),
+    /** SMTP driver config — set to enable nodemailer email sending. */
+    smtp: Type.Optional(Type.Object({
+      url: Type.String({ minLength: 1 }),
+      fromName: Type.String({ default: 'feathers-baas' }),
+      fromAddress: Type.String({ minLength: 1 }),
+    })),
+    /** Resend driver config — set to enable Resend email sending. */
+    resend: Type.Optional(Type.Object({
+      apiKey: Type.String({ minLength: 1 }),
+      fromName: Type.String({ default: 'feathers-baas' }),
+      fromAddress: Type.String({ minLength: 1 }),
+    })),
+    /** SendGrid driver config — set to enable SendGrid email sending. */
+    sendgrid: Type.Optional(Type.Object({
+      apiKey: Type.String({ minLength: 1 }),
+      fromName: Type.String({ default: 'feathers-baas' }),
+      fromAddress: Type.String({ minLength: 1 }),
+    })),
+    /** Brevo driver config — set to enable Brevo email sending. */
+    brevo: Type.Optional(Type.Object({
+      apiKey: Type.String({ minLength: 1 }),
+      fromName: Type.String({ default: 'feathers-baas' }),
+      fromAddress: Type.String({ minLength: 1 }),
+    })),
+  })),
 })
 
 export type AppConfiguration = Static<typeof AppConfigurationSchema>
@@ -69,6 +103,44 @@ export function resolveConfig(): AppConfiguration {
 
     adminEmail: process.env['ADMIN_EMAIL'],
     adminPassword: process.env['ADMIN_PASSWORD'],
+
+    redis: process.env['REDIS_URL']
+      ? { url: process.env['REDIS_URL'] }
+      : undefined,
+
+    notifications: process.env['REDIS_URL']
+      ? {
+          appUrl: process.env['APP_URL'] ?? 'http://localhost:3030',
+          smtp: process.env['SMTP_URL']
+            ? {
+                url: process.env['SMTP_URL'],
+                fromName: process.env['SMTP_FROM_NAME'] ?? 'feathers-baas',
+                fromAddress: process.env['SMTP_FROM_ADDRESS'] ?? '',
+              }
+            : undefined,
+          resend: process.env['RESEND_API_KEY']
+            ? {
+                apiKey: process.env['RESEND_API_KEY'],
+                fromName: process.env['RESEND_FROM_NAME'] ?? 'feathers-baas',
+                fromAddress: process.env['RESEND_FROM_ADDRESS'] ?? '',
+              }
+            : undefined,
+          sendgrid: process.env['SENDGRID_API_KEY']
+            ? {
+                apiKey: process.env['SENDGRID_API_KEY'],
+                fromName: process.env['SENDGRID_FROM_NAME'] ?? 'feathers-baas',
+                fromAddress: process.env['SENDGRID_FROM_ADDRESS'] ?? '',
+              }
+            : undefined,
+          brevo: process.env['BREVO_API_KEY']
+            ? {
+                apiKey: process.env['BREVO_API_KEY'],
+                fromName: process.env['BREVO_FROM_NAME'] ?? 'feathers-baas',
+                fromAddress: process.env['BREVO_FROM_ADDRESS'] ?? '',
+              }
+            : undefined,
+        }
+      : undefined,
   }
 
   if (!Value.Check(AppConfigurationSchema, raw)) {

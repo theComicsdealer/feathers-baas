@@ -26,6 +26,7 @@
     "db:reset": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:rollback --all --knexfile knexfile.ts && pnpm db:migrate"
   },
   "dependencies": {
+    "@feathers-baas/plugin-notifications": "workspace:*",
     "@feathersjs/authentication": "^5.0.30",
     "@feathersjs/authentication-local": "^5.0.30",
     "@feathersjs/authentication-oauth": "^5.0.30",
