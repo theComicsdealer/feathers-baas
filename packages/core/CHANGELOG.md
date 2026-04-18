@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.1.4
+
+### Patch Changes
+
+- 558eb6a: Fix MongoDB support: service configurators now branch on database type, using MongoDBService classes when MongoDB is configured instead of requiring Knex
+
 ## 0.1.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@feathers-baas/core",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Core Feathers.js v5 app factory for feathers-baas",
   "keywords": [
     "feathers",
