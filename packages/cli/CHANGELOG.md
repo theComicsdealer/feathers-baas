@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.5
+
+### Patch Changes
+
+- Fix seed command: use dynamic ESM import instead of CJS require to preserve import.meta.url in loaded packages
+
 ## 0.3.4
 
 ### Patch Changes
