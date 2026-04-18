@@ -2,6 +2,7 @@
 import { Command } from 'clipanion'
 import { resolve } from 'node:path'
 import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 import { existsSync, readFileSync } from 'node:fs'
 import * as output from '../utils/output.js'
 
@@ -38,7 +39,9 @@ export class SeedCommand extends Command {
 
       // Resolve from the project's node_modules, not the CLI's (matters when CLI is global)
       const projectRequire = createRequire(resolve('./package.json'))
-      const { createApp, seedDatabase } = projectRequire('@feathers-baas/core')
+      const corePath = projectRequire.resolve('@feathers-baas/core')
+      const coreUrl = pathToFileURL(corePath).href
+      const { createApp, seedDatabase } = await import(coreUrl)
       const app = await createApp()
 
       output.info('Seeding database...\n')
