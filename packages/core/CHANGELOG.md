@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.1.3
+
+### Patch Changes
+
+- 4b0feef: Fixed database auto-detection issue. App now auto-detects the database from whichever env var is set.
+
 ## 0.1.2
 
 ### Patch Changes
