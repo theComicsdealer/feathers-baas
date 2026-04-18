@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.2.1
+
+### Patch Changes
+
+- 1b4cb4e: Add init command and include plugin packages in generated project dependencies
+
 ## 0.2.0
 
 ### Minor Changes

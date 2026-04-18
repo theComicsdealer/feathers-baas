@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.1.2
+
+### Patch Changes
+
+- 1b4cb4e: Fix tsup config to externalize all package imports — prevents bundling mongodb/pg and Node built-ins into dist
+
 ## 0.1.1
 
 ### Patch Changes
