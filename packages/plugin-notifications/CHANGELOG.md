@@ -1,5 +1,11 @@
 # @feathers-baas/plugin-notifications
 
+## 0.2.1
+
+### Patch Changes
+
+- Add README for each package, update AGENTS.md template, fix MongoDB auth entityId, and add timestamp hooks for consistent createdAt/updatedAt across all databases
+
 ## 0.2.0
 
 ### Minor Changes

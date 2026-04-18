@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.4
+
+### Patch Changes
+
+- Add README for each package, update AGENTS.md template, fix MongoDB auth entityId, and add timestamp hooks for consistent createdAt/updatedAt across all databases
+
 ## 0.3.3
 
 ### Patch Changes

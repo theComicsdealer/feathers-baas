@@ -1,5 +1,13 @@
 # @feathers-baas/core
 
+## 0.2.5
+
+### Patch Changes
+
+- Add README for each package, update AGENTS.md template, fix MongoDB auth entityId, and add timestamp hooks for consistent createdAt/updatedAt across all databases
+- Updated dependencies
+  - @feathers-baas/plugin-notifications@0.2.1
+
 ## 0.2.4
 
 ### Patch Changes
