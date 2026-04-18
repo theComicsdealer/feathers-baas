@@ -40,12 +40,12 @@ export function discoverPlugins(projectRoot?: string): string[] {
     ...(pkg['dependencies'] as Record<string, string> | undefined),
   }
 
-  const require = createRequire(join(root, 'node_modules'))
+  const require = createRequire(pkgPath)
   const pluginNames: string[] = []
 
   for (const depName of Object.keys(allDeps)) {
     try {
-      const depPkgPath = require.resolve(join(depName, 'package.json'))
+      const depPkgPath = require.resolve(`${depName}/package.json`)
       const depPkg = JSON.parse(readFileSync(depPkgPath, 'utf-8')) as Record<string, unknown>
 
       const hasKeyword = Array.isArray(depPkg['keywords']) &&
@@ -55,8 +55,8 @@ export function discoverPlugins(projectRoot?: string): string[] {
       if (hasKeyword || hasFlag) {
         pluginNames.push(depName)
       }
-    } catch {
-      // dependency not resolvable — skip
+    } catch (err) {
+      logger.debug({ dep: depName, err: (err as Error).message }, 'Could not resolve dependency for plugin check')
     }
   }
 
