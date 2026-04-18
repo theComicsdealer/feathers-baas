@@ -4,6 +4,7 @@ import type { HookContext } from '@feathersjs/feathers'
 import { LRUCache } from 'lru-cache'
 import type { Application } from '../declarations.js'
 import type { Role } from '../services/roles/roles.schema.js'
+import { parseRolePermissions } from '../services/roles/roles.class.js'
 
 type PermissionMethod = '*' | 'find' | 'get' | 'create' | 'update' | 'patch' | 'remove'
 
@@ -25,14 +26,18 @@ async function resolveRoles(roleNames: string[], app: Application): Promise<Role
   const missing = roleNames.filter((n) => !roleCache.has(n))
 
   if (missing.length > 0) {
-    // Internal call (no params.provider) — bypasses auth and permission hooks
-    const result = await (app.service('roles') as { find(p: object): Promise<Role[] | { data: Role[] }> }).find({
+    // Use _find to bypass all hooks (authenticate, checkPermissions)
+    const svc = app.service('roles') as unknown as {
+      _find(p: object): Promise<Role[] | { data: Role[]; total: number }>
+    }
+    const result = await svc._find({
       paginate: false,
       query: { name: { $in: missing } },
     })
 
-    const rows: Role[] = Array.isArray(result) ? result : result.data
-    for (const role of rows) {
+    const raw: Role[] = Array.isArray(result) ? result : (result.data ?? [])
+    for (const rawRole of raw) {
+      const role = parseRolePermissions(rawRole)
       roleCache.set(role.name, role)
     }
   }
@@ -62,7 +67,7 @@ export async function checkPermissions(context: HookContext<Application>): Promi
   const allowed = roles.some((role) =>
     role.permissions.some(
       (p) =>
-        p.service === context.path &&
+        (p.service === '*' || p.service === context.path) &&
         (p.methods.includes('*') || p.methods.includes(method)),
     ),
   )
