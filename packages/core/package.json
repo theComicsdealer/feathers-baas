@@ -2,14 +2,32 @@
   "name": "@feathers-baas/core",
   "version": "0.0.1",
   "description": "Core Feathers.js v5 app factory for feathers-baas",
+  "keywords": ["feathers", "feathersjs", "backend", "baas"],
+  "publishConfig": { "access": "public" },
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./exports": {
+      "import": {
+        "types": "./dist/exports.d.ts",
+        "default": "./dist/exports.js"
+      },
+      "require": {
+        "types": "./dist/exports.d.cts",
+        "default": "./dist/exports.cjs"
+      }
     }
   },
   "scripts": {

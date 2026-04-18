@@ -20,6 +20,7 @@ import { configureChannels } from './channels.js'
 import { configureNotifications } from './notifications/index.js'
 import { configureHealth } from './health.js'
 import { configureOpenApi } from './openapi.js'
+import { installPlugins } from './plugins.js'
 import { logError } from './hooks/log-error.js'
 
 export async function createApp(): Promise<Application> {
@@ -71,7 +72,10 @@ export async function createApp(): Promise<Application> {
   // 10. Notifications (BullMQ queue + driver — no-op when REDIS_URL is absent)
   await configureNotifications(app)
 
-  // 11. App-wide error logging hook
+  // 11. Plugins (auto-discovered from package.json)
+  await installPlugins(app)
+
+  // 12. App-wide error logging hook
   app.hooks({ around: { all: [logError] } })
 
   logger.debug('App configured')
