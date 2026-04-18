@@ -1,6 +1,6 @@
 {
   "name": "@feathers-baas/plugin-files",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Files service plugin for feathers-baas — local, S3, and GCS storage drivers",
   "keywords": [
     "feathers",

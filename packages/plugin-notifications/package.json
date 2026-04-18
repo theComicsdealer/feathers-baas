@@ -1,6 +1,6 @@
 {
   "name": "@feathers-baas/plugin-notifications",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Notifications plugin for feathers-baas — BullMQ-backed email drivers (SMTP, Resend, SendGrid, Brevo)",
   "keywords": [
     "feathers",

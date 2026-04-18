@@ -1,5 +1,12 @@
 # @feathers-baas/core
 
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @feathers-baas/plugin-notifications@0.2.0
+
 ## 0.2.3
 
 ### Patch Changes

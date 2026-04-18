@@ -1,5 +1,11 @@
 # @feathers-baas/plugin-files
 
+## 0.2.0
+
+### Minor Changes
+
+- Add default FeathersBaasPlugin export so plugin discovery can validate and install plugins
+
 ## 0.1.1
 
 ### Patch Changes
