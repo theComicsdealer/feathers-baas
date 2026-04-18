@@ -5,16 +5,16 @@ import type { Application as KoaApplication } from '@feathersjs/koa'
 import type { AuthenticationService } from '@feathersjs/authentication'
 import type { Worker, Queue } from 'bullmq'
 import type { AppConfiguration } from './configuration.js'
-import type { UsersClass } from './services/users/users.class.js'
-import type { RolesClass } from './services/roles/roles.class.js'
+import type { UsersClass, UsersMongoClass } from './services/users/users.class.js'
+import type { RolesClass, RolesMongoClass } from './services/roles/roles.class.js'
 import type { NotificationJob } from '@feathers-baas/plugin-notifications'
 
 export type { AppConfiguration }
 
 export interface ServiceTypes {
   authentication: AuthenticationService
-  users: UsersClass
-  roles: RolesClass
+  users: UsersClass | UsersMongoClass
+  roles: RolesClass | RolesMongoClass
 }
 
 export type AppNotifierFn = (
@@ -24,7 +24,7 @@ export type AppNotifierFn = (
 ) => Promise<void>
 
 export interface Configuration {
-  knex: Knex
+  knex?: Knex
   config: AppConfiguration
   authentication: Record<string, unknown>
   notifier?: AppNotifierFn

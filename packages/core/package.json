@@ -59,6 +59,7 @@
     "@feathersjs/feathers": "^5.0.30",
     "@feathersjs/knex": "^5.0.30",
     "@feathersjs/koa": "^5.0.30",
+    "@feathersjs/mongodb": "^5.0.44",
     "@feathersjs/typebox": "^5.0.30",
     "@sinclair/typebox": "^0.25.0",
     "argon2": "^0.41.0",

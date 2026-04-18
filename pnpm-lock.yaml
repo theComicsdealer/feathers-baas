@@ -101,10 +101,13 @@ importers:
         version: 5.0.44
       '@feathersjs/knex':
         specifier: ^5.0.30
-        version: 5.0.44(knex@3.2.9(better-sqlite3@11.10.0)(mysql2@3.22.1(@types/node@22.19.17))(pg@8.20.0))
+        version: 5.0.44(knex@3.2.9)
       '@feathersjs/koa':
         specifier: ^5.0.30
         version: 5.0.44(typescript@5.9.3)
+      '@feathersjs/mongodb':
+        specifier: ^5.0.44
+        version: 5.0.44(mongodb@6.21.0)
       '@feathersjs/typebox':
         specifier: ^5.0.30
         version: 5.0.44(typescript@5.9.3)
@@ -196,7 +199,7 @@ importers:
         version: 5.0.44
       '@feathersjs/knex':
         specifier: ^5.0.30
-        version: 5.0.44(knex@3.2.9(better-sqlite3@11.10.0)(mysql2@3.22.1(@types/node@22.19.17))(pg@8.20.0))
+        version: 5.0.44(knex@3.2.9)
       '@feathersjs/typebox':
         specifier: ^5.0.30
         version: 5.0.44(typescript@5.9.3)
@@ -964,6 +967,12 @@ packages:
   '@feathersjs/koa@5.0.44':
     resolution: {integrity: sha512-sRPCXsq4bDBuibSwsU6/RJKJbXCwF12scOmMaDS8mxupWI5/5GGu6wZw+vDfNgRteUYHw7n/6yqRME5SmU8qGw==}
     engines: {node: '>= 14'}
+
+  '@feathersjs/mongodb@5.0.44':
+    resolution: {integrity: sha512-sfk7gUuA1ycIAVCfff0l6bUkeE5rLpgNbueJ9wNPAY2/JeCmqQJV5jtRHVm74ESWnyl6Z2iAQoX2+33nBGmTiQ==}
+    engines: {node: '>= 14'}
+    peerDependencies:
+      mongodb: ^6.19.0
 
   '@feathersjs/schema@5.0.44':
     resolution: {integrity: sha512-1xk7+Zs17MQEgfPDipf9ribG4hF+YdYxfO3Dijn1GSk1x285HVqgSH4MQLUpY+z6gfBn5/jE3S7+yDQ4ITmrXw==}
@@ -5885,7 +5894,7 @@ snapshots:
 
   '@feathersjs/hooks@0.9.0': {}
 
-  '@feathersjs/knex@5.0.44(knex@3.2.9(better-sqlite3@11.10.0)(mysql2@3.22.1(@types/node@22.19.17))(pg@8.20.0))':
+  '@feathersjs/knex@5.0.44(knex@3.2.9)':
     dependencies:
       '@feathersjs/adapter-commons': 5.0.44
       '@feathersjs/commons': 5.0.44
@@ -5913,6 +5922,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - typescript
+
+  '@feathersjs/mongodb@5.0.44(mongodb@6.21.0)':
+    dependencies:
+      '@feathersjs/adapter-commons': 5.0.44
+      '@feathersjs/commons': 5.0.44
+      '@feathersjs/errors': 5.0.44
+      '@feathersjs/feathers': 5.0.44
+      mongodb: 6.21.0
 
   '@feathersjs/schema@5.0.44(typescript@5.9.3)':
     dependencies:
@@ -6192,7 +6209,6 @@ snapshots:
   '@mongodb-js/saslprep@1.4.8':
     dependencies:
       sparse-bitfield: 3.0.3
-    optional: true
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.3':
     optional: true
@@ -6876,13 +6892,11 @@ snapshots:
 
   '@types/tough-cookie@4.0.5': {}
 
-  '@types/webidl-conversions@7.0.3':
-    optional: true
+  '@types/webidl-conversions@7.0.3': {}
 
   '@types/whatwg-url@11.0.5':
     dependencies:
       '@types/webidl-conversions': 7.0.3
-    optional: true
 
   '@typescript-eslint/eslint-plugin@8.58.2(@typescript-eslint/parser@8.58.2(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -7256,8 +7270,7 @@ snapshots:
   brorand@1.1.0:
     optional: true
 
-  bson@6.10.4:
-    optional: true
+  bson@6.10.4: {}
 
   buffer-equal-constant-time@1.0.1: {}
 
@@ -8995,8 +9008,7 @@ snapshots:
 
   media-typer@1.1.0: {}
 
-  memory-pager@1.5.0:
-    optional: true
+  memory-pager@1.5.0: {}
 
   merge-descriptors@1.0.3: {}
 
@@ -9070,14 +9082,12 @@ snapshots:
     dependencies:
       '@types/whatwg-url': 11.0.5
       whatwg-url: 14.2.0
-    optional: true
 
   mongodb@6.21.0:
     dependencies:
       '@mongodb-js/saslprep': 1.4.8
       bson: 6.10.4
       mongodb-connection-string-url: 3.0.2
-    optional: true
 
   mri@1.2.0: {}
 
@@ -9834,7 +9844,6 @@ snapshots:
   sparse-bitfield@3.0.3:
     dependencies:
       memory-pager: 1.5.0
-    optional: true
 
   spawndamnit@3.0.1:
     dependencies:
@@ -10063,7 +10072,6 @@ snapshots:
   tr46@5.1.1:
     dependencies:
       punycode: 2.3.1
-    optional: true
 
   traverse@0.6.11:
     dependencies:
@@ -10307,14 +10315,12 @@ snapshots:
 
   webidl-conversions@3.0.1: {}
 
-  webidl-conversions@7.0.0:
-    optional: true
+  webidl-conversions@7.0.0: {}
 
   whatwg-url@14.2.0:
     dependencies:
       tr46: 5.1.1
       webidl-conversions: 7.0.0
-    optional: true
 
   whatwg-url@5.0.0:
     dependencies:
