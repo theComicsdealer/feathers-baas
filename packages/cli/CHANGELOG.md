@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.0
+
+### Minor Changes
+
+- Add database seeding: `feathers-baas seed` CLI command creates default roles (admin, user) and admin user from ADMIN_EMAIL/ADMIN_PASSWORD env vars
+
 ## 0.2.1
 
 ### Patch Changes
