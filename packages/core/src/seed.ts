@@ -27,7 +27,8 @@ export async function seedDatabase(app: Application): Promise<void> {
       paginate: { default: 1, max: 1 },
     })
     if (existing.total === 0 || existing.data?.length === 0) {
-      await rolesService._create(role)
+      const now = new Date().toISOString()
+      await rolesService._create({ ...role, createdAt: now, updatedAt: now })
       logger.info(`Created role: ${role.name}`)
     } else {
       logger.info(`Role "${role.name}" already exists, skipping`)

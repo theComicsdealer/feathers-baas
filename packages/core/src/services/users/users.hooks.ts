@@ -8,6 +8,7 @@ import type { HookContext } from '@feathersjs/feathers'
 import type { Application } from '../../declarations.js'
 import { checkPermissions } from '../../hooks/permission-check.js'
 import { createNotifier } from '../../auth/notifier.js'
+import { setTimestamps } from '../../hooks/timestamps.js'
 
 // ─── Password hashing ────────────────────────────────────────────────────────
 
@@ -145,15 +146,17 @@ export const usersHooks = {
       iff(isProvider('rest'), preventAdminRole),
       checkEmailUnique,
       hashPassword,
+      setTimestamps,
       addVerification('authManagement'),
       coerceVerificationDates,
     ],
-    update: [iff(isProvider('rest'), checkPermissions)],
+    update: [iff(isProvider('rest'), checkPermissions), setTimestamps],
     patch: [
       iff(isProvider('rest'), checkPermissions),
       iff(isProvider('rest'), preventAdminRole),
       preventEmptyRoles,
       hashPassword,
+      setTimestamps,
       coerceVerificationDates,
     ],
     remove: [iff(isProvider('rest'), checkPermissions)],

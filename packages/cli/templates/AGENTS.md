@@ -10,31 +10,47 @@ This is a **feathers-baas** project — a Feathers.js v5 backend with TypeBox sc
 
 ```
 src/
-├── app.ts                  # App factory — bootstrap order matters (see below)
-├── configuration.ts        # TypeBox config schema, reads env vars
-├── declarations.ts         # Feathers Application type augmentation
-├── logger.ts               # Pino logger setup
-├── health.ts               # GET /health, GET /health/ready
-├── openapi.ts              # OpenAPI 3.1 spec generation, GET /openapi.json, GET /docs
-├── channels.ts             # Real-time channel setup
-├── db/
-│   └── knex.ts             # Database client (Knex or MongoDB)
-├── auth/
-│   ├── index.ts            # JWT + local auth strategies
-│   ├── auth-management.ts  # Email verification, password reset
-│   └── notifier.ts         # Auth event → notification pipeline
+├── index.ts                # App entry point — creates app, starts server, shutdown handler
 ├── services/
-│   ├── index.ts            # Service registry — imports + configures all services
-│   ├── users/              # Users service (4 files)
-│   └── roles/              # Roles service (4 files)
-├── hooks/
-│   ├── authenticate.ts     # JWT auth hook
-│   ├── permission-check.ts # RBAC hook (LRU-cached)
-│   └── log-error.ts        # Global error logging
-├── notifications/
-│   └── index.ts            # Email driver registry + BullMQ/direct delivery
-migrations/                 # Knex migration files
-seeds/                      # Seed files (admin user, default roles)
+│   └── index.ts            # Extension point — add custom service configure calls here
+.env                        # Environment variables (gitignored)
+.env.example                # Template with all available env vars
+```
+
+The core framework lives in `@feathers-baas/core`. Your project extends it via `createApp({ configureServices })`.
+
+### Core internals (inside @feathers-baas/core)
+
+```
+app.ts                      # App factory — bootstrap order matters (see below)
+configuration.ts            # TypeBox config schema, reads env vars
+declarations.ts             # Feathers Application type augmentation
+logger.ts                   # Pino logger setup
+health.ts                   # GET /health, GET /health/ready
+openapi.ts                  # OpenAPI 3.1 spec generation, GET /openapi.json, GET /docs
+channels.ts                 # Real-time channel setup
+seed.ts                     # Database seeding (default roles + admin user)
+db/
+├── knex.ts                 # PostgreSQL adapter (Knex)
+├── mysql.ts                # MySQL adapter (Knex)
+├── sqlite.ts               # SQLite adapter (Knex)
+└── mongo.ts                # MongoDB adapter (native driver)
+auth/
+├── index.ts                # JWT + local auth strategies (argon2id)
+├── auth-management.ts      # Email verification, password reset
+├── strategies/             # Custom local strategy (argon2 verify)
+└── notifier.ts             # Auth event → notification pipeline
+services/
+├── index.ts                # Service registry — imports + configures all services
+├── users/                  # Users service (schema, class, hooks, service)
+└── roles/                  # Roles service (schema, class, hooks, service)
+hooks/
+├── permission-check.ts     # RBAC hook (LRU-cached)
+├── timestamps.ts           # Sets createdAt/updatedAt on create and patch
+└── log-error.ts            # Global error logging
+notifications/
+└── index.ts                # Email driver registry + BullMQ/direct delivery
+plugins.ts                  # Plugin discovery, loading, and installation
 ```
 
 ## Service anatomy
@@ -44,7 +60,7 @@ Each service is four colocated files:
 | File | Purpose |
 |---|---|
 | `<name>.schema.ts` | TypeBox schemas: main (DB row), data (create), patch, query |
-| `<name>.class.ts` | KnexService or MongoDBService subclass |
+| `<name>.class.ts` | KnexService or MongoDBService subclass (both are defined, used based on DB type) |
 | `<name>.hooks.ts` | Before/after/error hook chains |
 | `<name>.service.ts` | Wires class + hooks, mounts on app, registers OpenAPI schemas |
 
@@ -61,7 +77,7 @@ Or manually:
 2. Add import + configure call in `src/services/index.ts`
 3. Add type to `ServiceTypes` in `src/declarations.ts`
 4. Register schemas via `registerServiceSchemas()` in the service file
-5. Create a migration in `migrations/`
+5. Create a migration in `migrations/` (SQL) or skip (MongoDB)
 
 ## How to add a hook
 
@@ -84,19 +100,31 @@ These patches use ts-morph (AST-safe), not regex. They append to existing code w
 
 ## Bootstrap order
 
-The app bootstraps in strict order in `app.ts`. Order matters:
+The app bootstraps in strict order in `createApp()`. Order matters:
 
 1. Config validation (fail-fast)
-2. Security middleware (cors, error handler)
+2. Security middleware (cors, error handler, body parser)
 3. Health checks + OpenAPI (before auth — no token required)
-4. HTTP transport
-5. Database connection
-6. Authentication strategies
-7. Services
-8. Auth management (depends on users service)
-9. Channels
-10. Notifications
-11. Global error hook
+4. HTTP transport (REST)
+5. Database connection (auto-detected from env vars)
+6. Authentication strategies (JWT + local with argon2id)
+7. Built-in services (users, roles) + custom services via `configureServices` callback
+8. Auth management (email verification, password reset — depends on users service)
+9. Channels (real-time)
+10. Notifications (email drivers + optional BullMQ queue)
+11. Plugins (auto-discovered from package.json dependencies)
+12. Global error logging hook
+
+## Database support
+
+| Database | Env var | Service class | ID field |
+|---|---|---|---|
+| PostgreSQL | `DATABASE_URL` | `KnexService` | `id` (UUID) |
+| MySQL | `MYSQL_URL` | `KnexService` | `id` (UUID) |
+| SQLite | `SQLITE_FILENAME` | `KnexService` | `id` (UUID) |
+| MongoDB | `MONGODB_URL` | `MongoDBService` | `_id` (ObjectId) |
+
+Service configurators auto-detect the database type and instantiate the correct class. Knex adapters auto-convert between camelCase (TypeScript) and snake_case (DB columns).
 
 ## Environment variables
 
@@ -109,7 +137,10 @@ The app bootstraps in strict order in `app.ts`. Order matters:
 | `JWT_SECRET` | Yes | HMAC secret (min 32 chars) |
 | `PORT` | | HTTP port (default: 3030) |
 | `NODE_ENV` | | development / test / production |
+| `ADMIN_EMAIL` | | Admin user email (for seeding) |
+| `ADMIN_PASSWORD` | | Admin user password (for seeding) |
 | `REDIS_URL` | | Redis (enables BullMQ queue for notifications) |
+| `CORS_ORIGINS` | | Comma-separated allowed origins |
 
 \* Exactly one database variable is required.
 
@@ -120,24 +151,39 @@ pnpm dev           # Start dev server with hot reload
 pnpm build         # Build with tsup
 pnpm typecheck     # Run tsc --noEmit
 pnpm test          # Run vitest
-pnpm db:migrate    # Run Knex migrations
+pnpm seed          # Seed default roles and admin user
+pnpm db:migrate    # Run Knex migrations (SQL databases only)
 pnpm db:rollback   # Rollback last migration batch
-pnpm db:seed       # Run seed files
+pnpm db:seed       # Run Knex seed files
 ```
 
 ## CLI commands
 
 ```bash
-npx feathers-baas generate service   # Generate a new service
-npx feathers-baas generate hook      # Generate a new hook
-npx feathers-baas doctor             # Check project health
-npx feathers-baas describe           # Introspect services (JSON)
+npx feathers-baas init              # Scaffold a new project
+npx feathers-baas generate service  # Generate a new service
+npx feathers-baas generate hook     # Generate a new hook
+npx feathers-baas seed              # Seed roles and admin user
+npx feathers-baas doctor            # Check project health
+npx feathers-baas describe          # Introspect services (JSON)
 ```
 
 ## Conventions
 
-- **camelCase** in TypeScript, **snake_case** in database columns (auto-converted by Knex)
+- **camelCase** in TypeScript, **snake_case** in database columns (auto-converted by Knex; MongoDB uses camelCase natively)
 - TypeBox schemas are the source of truth for validation and OpenAPI
 - Passwords are hashed with argon2id and stripped from all API responses
-- Role permissions stored as JSONB, cached with LRU (5-min TTL)
+- Role permissions stored as JSONB (SQL) or embedded document (MongoDB), cached with LRU (5-min TTL)
 - All hook chains gate on `isProvider('rest')` — internal calls bypass auth/RBAC
+- Timestamps (`createdAt`, `updatedAt`) are set by hooks on create and patch for all databases
+- The `entityId` for authentication is `id` for SQL databases and `_id` for MongoDB
+
+## Plugin system
+
+Plugins are npm packages auto-discovered from `package.json` dependencies. A package is a plugin if:
+- Its `package.json` has `"feathers-baas-plugin": true`, or
+- Its `keywords` include `"feathers-baas-plugin"`
+
+Built-in plugins:
+- `@feathers-baas/plugin-files` — file storage (local/S3/GCS)
+- `@feathers-baas/plugin-notifications` — email delivery (SMTP/Resend/SendGrid/Brevo)

@@ -7,10 +7,12 @@ export function configureAuth(app: Application): void {
   const config = app.get('config')
 
   // Must be set BEFORE registering strategies — verifyConfiguration() reads it at register time
+  const isMongo = !!app.get('mongoDb')
+
   app.set('authentication', {
     secret: config.jwtSecret,
     entity: 'user',
-    entityId: 'id',
+    entityId: isMongo ? '_id' : 'id',
     service: 'users',
     authStrategies: ['jwt', 'local'],
     jwtOptions: {

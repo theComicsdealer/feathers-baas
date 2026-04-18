@@ -4,6 +4,7 @@ import { iff, isProvider } from 'feathers-hooks-common'
 import type { HookContext } from '@feathersjs/feathers'
 import type { Application } from '../../declarations.js'
 import { checkPermissions, invalidateRoleCache } from '../../hooks/permission-check.js'
+import { setTimestamps } from '../../hooks/timestamps.js'
 import { parseRolePermissions } from './roles.class.js'
 import type { Role } from './roles.schema.js'
 
@@ -36,8 +37,8 @@ export const rolesHooks = {
   },
   before: {
     all: [iff(isProvider('rest'), checkPermissions)],
-    create: [],
-    patch: [],
+    create: [setTimestamps],
+    patch: [setTimestamps],
     remove: [],
   },
   after: {
