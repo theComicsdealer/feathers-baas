@@ -12,7 +12,7 @@ import {
 import type { Application } from './declarations.js'
 import { resolveConfig } from './configuration.js'
 import { logger } from './logger.js'
-import { configureKnex } from './db/index.js'
+import { configureKnex, configureMysql, configureSqlite, configureMongo } from './db/index.js'
 import { configureAuth } from './auth/index.js'
 import { configureAuthManagement } from './auth/auth-management.js'
 import { configureServices } from './services/index.js'
@@ -58,8 +58,18 @@ export async function createApp(options?: CreateAppOptions): Promise<Application
   // 4. Transports
   app.configure(rest())
 
-  // 5. Database
-  await configureKnex(app)
+  // 5. Database — auto-detect from config
+  if (config.postgres) {
+    await configureKnex(app)
+  } else if (config.mysql) {
+    await configureMysql(app)
+  } else if (config.sqlite) {
+    await configureSqlite(app)
+  } else if (config.mongodb) {
+    await configureMongo(app)
+  } else {
+    throw new Error('No database configured — set DATABASE_URL, MYSQL_URL, SQLITE_FILENAME, or MONGODB_URL')
+  }
 
   // 6. Authentication
   configureAuth(app)
