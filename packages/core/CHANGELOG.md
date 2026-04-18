@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix package exports: main entry now points to exports.js/exports.cjs (where createApp and seedDatabase are exported) instead of the non-existent index.cjs
+
 ## 0.2.0
 
 ### Minor Changes
