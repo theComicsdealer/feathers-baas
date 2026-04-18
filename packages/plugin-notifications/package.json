@@ -1,10 +1,19 @@
 {
   "name": "@feathers-baas/plugin-notifications",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Notifications plugin for feathers-baas — BullMQ-backed email drivers (SMTP, Resend, SendGrid, Brevo)",
-  "keywords": ["feathers", "feathersjs", "notifications", "email", "bullmq", "feathers-baas-plugin"],
+  "keywords": [
+    "feathers",
+    "feathersjs",
+    "notifications",
+    "email",
+    "bullmq",
+    "feathers-baas-plugin"
+  ],
   "feathers-baas-plugin": true,
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

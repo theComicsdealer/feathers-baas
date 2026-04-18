@@ -1,9 +1,16 @@
 {
   "name": "@feathers-baas/core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Core Feathers.js v5 app factory for feathers-baas",
-  "keywords": ["feathers", "feathersjs", "backend", "baas"],
-  "publishConfig": { "access": "public" },
+  "keywords": [
+    "feathers",
+    "feathersjs",
+    "backend",
+    "baas"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

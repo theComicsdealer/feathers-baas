@@ -1,9 +1,17 @@
 {
   "name": "feathers-baas",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "CLI scaffolder for production-ready Feathers.js v5 backends",
-  "keywords": ["feathers", "feathersjs", "cli", "scaffold", "baas"],
-  "publishConfig": { "access": "public" },
+  "keywords": [
+    "feathers",
+    "feathersjs",
+    "cli",
+    "scaffold",
+    "baas"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "feathers-baas": "./dist/index.js"
