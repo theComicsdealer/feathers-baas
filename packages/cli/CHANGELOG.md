@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.3
+
+### Patch Changes
+
+- Fix plugin discovery resolution, read CLI version from package.json at runtime, and fetch latest package versions from npm when scaffolding new projects
+
 ## 0.3.2
 
 ### Patch Changes

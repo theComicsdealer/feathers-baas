@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.2.2
+
+### Patch Changes
+
+- Fix plugin discovery resolution, read CLI version from package.json at runtime, and fetch latest package versions from npm when scaffolding new projects
+
 ## 0.2.1
 
 ### Patch Changes
