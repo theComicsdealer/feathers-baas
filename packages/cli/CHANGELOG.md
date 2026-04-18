@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.2
+
+### Patch Changes
+
+- Fix seed command resolving @feathers-baas/core from project node_modules instead of CLI install location; add CLI as devDependency in generated projects
+
 ## 0.3.1
 
 ### Patch Changes
