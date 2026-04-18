@@ -1,0 +1,55 @@
+import 'dotenv/config'
+import { createApp, logger } from '@feathers-baas/core/exports'
+import { configureServices } from './services/index.js'
+
+const startTime = Date.now()
+
+const app = await createApp({
+  configureServices,
+})
+
+const config = app.get('config')
+const server = await app.listen(config.port)
+
+const elapsed = Date.now() - startTime
+logger.info(
+  { host: config.host, port: config.port, env: config.nodeEnv, startupMs: elapsed },
+  'Server listening',
+)
+
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+
+let shuttingDown = false
+
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return
+  shuttingDown = true
+  logger.info({ signal }, 'Shutdown signal received')
+
+  const forceTimer = setTimeout(() => {
+    logger.error('Forced shutdown after 30s timeout')
+    process.exit(1)
+  }, 30_000)
+  forceTimer.unref()
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err?: Error) => (err ? reject(err) : resolve()))
+    })
+    logger.info('HTTP server closed')
+
+    const knex = app.get('knex')
+    if (knex) {
+      await knex.destroy()
+      logger.info('Database connections closed')
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error during shutdown')
+  }
+
+  logger.info('Server stopped')
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => { void shutdown('SIGTERM') })
+process.on('SIGINT', () => { void shutdown('SIGINT') })

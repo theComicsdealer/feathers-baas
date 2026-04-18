@@ -23,7 +23,11 @@ import { configureOpenApi } from './openapi.js'
 import { installPlugins } from './plugins.js'
 import { logError } from './hooks/log-error.js'
 
-export async function createApp(): Promise<Application> {
+export interface CreateAppOptions {
+  configureServices?: (app: Application) => void
+}
+
+export async function createApp(options?: CreateAppOptions): Promise<Application> {
   const config = resolveConfig()
 
   const app = koa(feathers()) as Application
@@ -62,6 +66,7 @@ export async function createApp(): Promise<Application> {
 
   // 7. Services
   configureServices(app)
+  options?.configureServices?.(app)
 
   // 8. Auth management (verification, password reset — depends on users service)
   configureAuthManagement(app)

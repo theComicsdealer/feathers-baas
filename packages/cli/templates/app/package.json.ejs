@@ -1,0 +1,34 @@
+{
+  "name": "<%- projectName %>",
+  "version": "0.0.1",
+  "description": "",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"<% if (database !== 'mongodb') { %>,
+    "db:migrate": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:latest --knexfile knexfile.ts",
+    "db:rollback": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:rollback --knexfile knexfile.ts",
+    "db:seed": "node --import tsx/esm ./node_modules/knex/bin/cli.js seed:run --knexfile knexfile.ts"<% } %>
+  },
+  "dependencies": {
+    "@feathers-baas/core": "^0.1.0"<% if (database === 'postgresql') { %>,
+    "pg": "^8.13.0"<% } else if (database === 'mysql') { %>,
+    "mysql2": "^3.0.0"<% } else if (database === 'sqlite') { %>,
+    "better-sqlite3": "^11.0.0"<% } else if (database === 'mongodb') { %>,
+    "mongodb": "^6.0.0"<% } %>,
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "pino-pretty": "*",
+    "tsup": "*",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "*"
+  }
+}

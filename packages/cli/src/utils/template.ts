@@ -10,6 +10,10 @@ const __dirname = dirname(__filename)
 // In src/: __dirname is packages/cli/src/utils — templates are at packages/cli/templates
 const TEMPLATE_DIR = join(__dirname, '..', 'templates')
 
+export function getTemplatePath(relativePath: string): string {
+  return join(TEMPLATE_DIR, relativePath)
+}
+
 export function renderTemplate(
   templatePath: string,
   data: Record<string, unknown>,

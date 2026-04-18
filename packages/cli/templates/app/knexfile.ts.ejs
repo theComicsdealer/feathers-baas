@@ -1,0 +1,26 @@
+import 'dotenv/config'
+import type { Knex } from 'knex'
+
+const config: Knex.Config = {
+<% if (database === 'postgresql') { -%>
+  client: 'pg',
+  connection: process.env['DATABASE_URL'],
+<% } else if (database === 'mysql') { -%>
+  client: 'mysql2',
+  connection: process.env['MYSQL_URL'],
+<% } else if (database === 'sqlite') { -%>
+  client: 'better-sqlite3',
+  connection: { filename: process.env['SQLITE_FILENAME'] ?? './data/<%- projectName %>.db' },
+  useNullAsDefault: true,
+<% } -%>
+  migrations: {
+    directory: './migrations',
+    extension: 'ts',
+  },
+  seeds: {
+    directory: './seeds',
+    extension: 'ts',
+  },
+}
+
+export default config
