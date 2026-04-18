@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.6
+
+### Patch Changes
+
+- Fix seed command: resolve ESM entry from core package exports map to ensure import.meta.url is available in loaded modules
+
 ## 0.3.5
 
 ### Patch Changes
