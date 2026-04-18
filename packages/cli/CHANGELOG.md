@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.1
+
+### Patch Changes
+
+- Fix seed command: replace dotenv dependency with built-in .env parser to avoid missing package error
+
 ## 0.3.0
 
 ### Minor Changes
