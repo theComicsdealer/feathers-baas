@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.7
+
+### Patch Changes
+
+- Fix service generator to respect project database: auto-detect MongoDB/SQL from package.json and emit MongoDBService class + mongo collection wiring (no migration file) for MongoDB projects, Knex otherwise. Add `--database` flag to override detection.
+
 ## 0.3.6
 
 ### Patch Changes

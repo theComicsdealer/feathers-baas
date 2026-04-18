@@ -3,7 +3,10 @@ import { Command, Option } from 'clipanion'
 import { input, confirm } from '@inquirer/prompts'
 import { resolve } from 'node:path'
 import { generateService, buildFields } from '../generators/service.generator.js'
+import { detectDatabase, type Database } from '../utils/detect-database.js'
 import * as output from '../utils/output.js'
+
+const VALID_DATABASES: Database[] = ['postgresql', 'mysql', 'sqlite', 'mongodb']
 
 interface RawField {
   name: string
@@ -56,6 +59,7 @@ export class GenerateServiceCommand extends Command {
   name = Option.String('--name,-n', { description: 'Service name (kebab-case)', required: false })
   fields = Option.String('--fields,-f', { description: 'Comma-separated fields (name:type[:optional])', required: false })
   projectPath = Option.String('--path,-p', { description: 'Project root path', required: false })
+  database = Option.String('--database,-d', { description: 'Database: postgresql, mysql, sqlite, mongodb (auto-detected by default)', required: false })
 
   async execute(): Promise<void> {
     try {
@@ -80,13 +84,28 @@ export class GenerateServiceCommand extends Command {
 
       const fields = buildFields(rawFields)
 
+      let database: Database
+      if (this.database) {
+        if (!VALID_DATABASES.includes(this.database as Database)) {
+          throw new Error(`Invalid database "${this.database}". Must be one of: ${VALID_DATABASES.join(', ')}`)
+        }
+        database = this.database as Database
+      } else {
+        database = detectDatabase(projectRoot)
+        output.info(`Detected database: ${database}`)
+      }
+
       output.info(`Generating service "${serviceName}"...`)
-      generateService({ name: serviceName, fields, projectRoot })
+      generateService({ name: serviceName, fields, projectRoot, database })
       output.success(`Service "${serviceName}" generated successfully!`)
       output.info('Next steps:')
       console.log('  1. Review the generated files')
-      console.log('  2. Run migrations: pnpm db:migrate')
-      console.log('  3. Restart the dev server: pnpm dev')
+      if (database !== 'mongodb') {
+        console.log('  2. Run migrations: pnpm db:migrate')
+        console.log('  3. Restart the dev server: pnpm dev')
+      } else {
+        console.log('  2. Restart the dev server: pnpm dev')
+      }
     } catch (err) {
       output.error(err instanceof Error ? err.message : String(err))
       process.exitCode = 1

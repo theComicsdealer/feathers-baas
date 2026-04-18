@@ -6,6 +6,22 @@ import { <%- camelName %>Hooks } from './<%- kebabName %>.hooks.js'
 export type { <%- pascalName %>Class as <%- pascalName %>Service }
 
 export function configure<%- pascalName %>(app: Application): void {
+<% if (database === 'mongodb') { -%>
+  const mongoDb = app.get('mongoDb')
+  if (!mongoDb) throw new Error('mongoDb not configured on app')
+
+  app.use(
+    '<%- kebabName %>',
+    new <%- pascalName %>Class(
+      { Model: mongoDb.collection('<%- tableName %>'), paginate: { default: 10, max: 100 } },
+      app,
+    ),
+    {
+      methods: ['find', 'get', 'create', 'patch', 'remove'],
+      events: [],
+    },
+  )
+<% } else { -%>
   const knex = app.get('knex')
 
   app.use(
@@ -19,6 +35,7 @@ export function configure<%- pascalName %>(app: Application): void {
       events: [],
     },
   )
+<% } -%>
 
   app.service('<%- kebabName %>').hooks(<%- camelName %>Hooks)
 }

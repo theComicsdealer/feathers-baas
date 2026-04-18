@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { Project, SyntaxKind } from 'ts-morph'
 import { renderTemplate } from '../utils/template.js'
 import { toCamelCase, toPascalCase, toSnakeCase, toKebabCase } from '../utils/naming.js'
+import type { Database } from '../utils/detect-database.js'
 import * as output from '../utils/output.js'
 
 export interface FieldDefinition {
@@ -20,6 +21,7 @@ export interface ServiceGeneratorOptions {
   name: string
   fields: FieldDefinition[]
   projectRoot: string
+  database: Database
 }
 
 function typeboxBaseForType(type: string): string {
@@ -66,7 +68,7 @@ export function buildFields(
 }
 
 export function generateService(opts: ServiceGeneratorOptions): void {
-  const { name, fields, projectRoot } = opts
+  const { name, fields, projectRoot, database } = opts
   const kebabName = toKebabCase(name)
   const camelName = toCamelCase(name)
   const pascalName = toPascalCase(name)
@@ -82,7 +84,7 @@ export function generateService(opts: ServiceGeneratorOptions): void {
 
   mkdirSync(serviceDir, { recursive: true })
 
-  const templateData = { kebabName, camelName, pascalName, tableName, fields }
+  const templateData = { kebabName, camelName, pascalName, tableName, fields, database }
 
   const filesToCreate: Array<{ template: string; filename: string; dir: string }> = [
     { template: 'service/schema.ts.ejs', filename: `${kebabName}.schema.ts`, dir: serviceDir },
@@ -99,18 +101,16 @@ export function generateService(opts: ServiceGeneratorOptions): void {
     output.fileCreated(rel)
   }
 
-  // Migration
-  const migrationNumber = nextMigrationNumber(migrationsDir)
-  const migrationFilename = `${migrationNumber}_create_${tableName}.ts`
-  const migrationContent = renderTemplate('service/migration.ts.ejs', templateData)
-  const migrationPath = join(migrationsDir, migrationFilename)
-  writeFileSync(migrationPath, migrationContent, 'utf-8')
-  output.fileCreated(migrationPath.replace(projectRoot + '/', ''))
+  if (database !== 'mongodb') {
+    const migrationNumber = nextMigrationNumber(migrationsDir)
+    const migrationFilename = `${migrationNumber}_create_${tableName}.ts`
+    const migrationContent = renderTemplate('service/migration.ts.ejs', templateData)
+    const migrationPath = join(migrationsDir, migrationFilename)
+    writeFileSync(migrationPath, migrationContent, 'utf-8')
+    output.fileCreated(migrationPath.replace(projectRoot + '/', ''))
+  }
 
-  // Patch services/index.ts
   patchServiceIndex(srcDir, kebabName, pascalName)
-
-  // Patch declarations.ts
   patchDeclarations(srcDir, kebabName, pascalName)
 }
 
