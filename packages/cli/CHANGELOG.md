@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.8
+
+### Patch Changes
+
+- Add `knex` as a direct dependency in generated SQL projects so `./node_modules/knex/bin/cli.js` resolves under pnpm's strict module layout — fixes `pnpm db:migrate` failing with ERR_MODULE_NOT_FOUND.
+
 ## 0.3.7
 
 ### Patch Changes

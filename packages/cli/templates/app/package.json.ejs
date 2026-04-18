@@ -20,11 +20,19 @@
   "dependencies": {
     "@feathers-baas/core": "^<%- versions.core %>",
     "@feathers-baas/plugin-files": "^<%- versions.pluginFiles %>",
-    "@feathers-baas/plugin-notifications": "^<%- versions.pluginNotifications %>"<% if (database === 'postgresql') { %>,
-    "pg": "^8.13.0"<% } else if (database === 'mysql') { %>,
-    "mysql2": "^3.0.0"<% } else if (database === 'sqlite') { %>,
-    "better-sqlite3": "^11.0.0"<% } else if (database === 'mongodb') { %>,
-    "mongodb": "^6.0.0"<% } %>,
+    "@feathers-baas/plugin-notifications": "^<%- versions.pluginNotifications %>",
+<% if (database !== 'mongodb') { -%>
+    "knex": "^3.1.0",
+<% } -%>
+<% if (database === 'postgresql') { -%>
+    "pg": "^8.13.0",
+<% } else if (database === 'mysql') { -%>
+    "mysql2": "^3.0.0",
+<% } else if (database === 'sqlite') { -%>
+    "better-sqlite3": "^11.0.0",
+<% } else if (database === 'mongodb') { -%>
+    "mongodb": "^6.0.0",
+<% } -%>
     "dotenv": "^16.4.0"
   },
   "devDependencies": {
