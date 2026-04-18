@@ -1,5 +1,13 @@
 # @feathers-baas/core
 
+## 0.2.3
+
+### Patch Changes
+
+- Expose ./package.json subpath in package exports to fix plugin discovery resolution
+- Updated dependencies
+  - @feathers-baas/plugin-notifications@0.1.1
+
 ## 0.2.2
 
 ### Patch Changes
