@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.2.0
+
+### Minor Changes
+
+- a9c9d92: Add init command — scaffolds a new project with database selection, Docker files, and AGENTS.md
+
 ## 0.1.0
 
 ### Minor Changes

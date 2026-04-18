@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.1.1
+
+### Patch Changes
+
+- a9c9d92: Add configureServices option to createApp for extending the app with additional services
+
 ## 0.1.0
 
 ### Minor Changes
