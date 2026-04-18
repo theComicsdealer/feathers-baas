@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.2.6
+
+### Patch Changes
+
+- Fix RBAC permission check: support service wildcard '\*', use \_find to bypass auth hooks during role resolution, and parse JSON permissions from SQL databases
+
 ## 0.2.5
 
 ### Patch Changes
