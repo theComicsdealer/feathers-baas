@@ -17,7 +17,9 @@
     "db:seed": "node --import tsx/esm ./node_modules/knex/bin/cli.js seed:run --knexfile knexfile.ts"<% } %>
   },
   "dependencies": {
-    "@feathers-baas/core": "^0.1.0"<% if (database === 'postgresql') { %>,
+    "@feathers-baas/core": "^0.1.0",
+    "@feathers-baas/plugin-files": "^0.1.0",
+    "@feathers-baas/plugin-notifications": "^0.1.0"<% if (database === 'postgresql') { %>,
     "pg": "^8.13.0"<% } else if (database === 'mysql') { %>,
     "mysql2": "^3.0.0"<% } else if (database === 'sqlite') { %>,
     "better-sqlite3": "^11.0.0"<% } else if (database === 'mongodb') { %>,
