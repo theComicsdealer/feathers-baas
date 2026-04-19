@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.10
+
+### Patch Changes
+
+- Add `@feathersjs/knex`, `@feathersjs/mongodb`, `@feathersjs/authentication`, `@feathersjs/feathers`, and `@feathersjs/typebox` as direct dependencies in generated projects — fixes ERR_MODULE_NOT_FOUND under pnpm's strict hoisting when generated services import these packages
+
 ## 0.3.9
 
 ### Patch Changes
