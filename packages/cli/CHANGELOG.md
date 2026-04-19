@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.3.11
+
+### Patch Changes
+
+- Add `feathers-hooks-common` as a direct dependency in generated projects — fixes ERR_MODULE_NOT_FOUND under pnpm strict hoisting when generated hook files import it
+
 ## 0.3.10
 
 ### Patch Changes

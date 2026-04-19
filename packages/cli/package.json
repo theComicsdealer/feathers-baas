@@ -1,6 +1,6 @@
 {
   "name": "feathers-baas",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "CLI scaffolder for production-ready Feathers.js v5 backends",
   "keywords": [
     "feathers",
