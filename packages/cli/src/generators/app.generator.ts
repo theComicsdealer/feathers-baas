@@ -33,6 +33,7 @@ function getLatestVersion(pkg: string): string {
 const STATIC_FILES = [
   'tsconfig.json',
   'tsup.config.ts',
+  'src/declarations.ts',
   'src/services/index.ts',
 ]
 

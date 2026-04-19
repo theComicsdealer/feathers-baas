@@ -2,8 +2,25 @@
 import type { Application } from '../../declarations.js'
 import { <%- pascalName %>Class } from './<%- kebabName %>.class.js'
 import { <%- camelName %>Hooks } from './<%- kebabName %>.hooks.js'
+import { registerServiceSchemas } from '@feathers-baas/core'
+import {
+  <%- camelName %>Schema,
+  <%- camelName %>DataSchema,
+  <%- camelName %>PatchSchema,
+  <%- camelName %>QuerySchema,
+} from './<%- kebabName %>.schema.js'
 
 export type { <%- pascalName %>Class as <%- pascalName %>Service }
+
+const methods = ['find', 'get', 'create', 'patch', 'remove']
+
+registerServiceSchemas('<%- kebabName %>', {
+  main: <%- camelName %>Schema,
+  data: <%- camelName %>DataSchema,
+  patch: <%- camelName %>PatchSchema,
+  query: <%- camelName %>QuerySchema,
+  methods,
+})
 
 export function configure<%- pascalName %>(app: Application): void {
 <% if (database === 'mongodb') { -%>

@@ -1,5 +1,12 @@
 # feathers-baas
 
+## 0.3.13
+
+### Patch Changes
+
+- Generate `src/declarations.ts` with `Application` re-export and `ServiceTypes` interface — fixes "Cannot find module '../../declarations.js'" in generated services; the file is also patched by `feathers-baas generate service` to add service type entries
+- Add `registerServiceSchemas` call to generated service files so they appear in the OpenAPI spec at `/openapi.json` and `/docs`
+
 ## 0.3.12
 
 ### Patch Changes
