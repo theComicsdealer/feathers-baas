@@ -13,3 +13,5 @@ export type { FeathersBaasPlugin, PluginTemplates, PluginGenerators } from './pl
 export { registerServiceSchemas, generateOpenApiSpec } from './openapi.js'
 export type { ServiceSchemas } from './openapi.js'
 export { seedDatabase } from './seed.js'
+export { checkPermissions, invalidateRoleCache } from './hooks/permission-check.js'
+export { parseRolePermissions } from './services/roles/roles.class.js'

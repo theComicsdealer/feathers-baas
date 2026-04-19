@@ -1,5 +1,12 @@
 # feathers-baas
 
+## 0.3.12
+
+### Patch Changes
+
+- Generate `src/hooks/permission-check.ts` with standalone RBAC implementation — fixes ERR_MODULE_NOT_FOUND for that local import in generated service hooks
+- Add `@feathersjs/errors` and `lru-cache` as direct dependencies in generated projects (required by the permission-check hook)
+
 ## 0.3.11
 
 ### Patch Changes

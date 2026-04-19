@@ -127,8 +127,10 @@ export function generateApp(options: AppOptions): void {
     }
   }
 
-  // Create src/hooks directory for generate hook
-  mkdirSync(join(projectRoot, 'src', 'hooks'), { recursive: true })
+  // Create src/hooks directory and copy built-in hooks
+  const hooksDir = join(projectRoot, 'src', 'hooks')
+  mkdirSync(hooksDir, { recursive: true })
+  copyTemplateDir('app/src/hooks', hooksDir, projectRoot)
 
   // Copy .env.example to .env
   const envExample = join(projectRoot, '.env.example')
