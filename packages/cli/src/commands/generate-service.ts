@@ -101,7 +101,7 @@ export class GenerateServiceCommand extends Command {
       output.info('Next steps:')
       console.log('  1. Review the generated files')
       if (database !== 'mongodb') {
-        console.log('  2. Run migrations: pnpm db:migrate')
+        console.log('  2. Run migrations: pnpm migrate')
         console.log('  3. Restart the dev server: pnpm dev')
       } else {
         console.log('  2. Restart the dev server: pnpm dev')

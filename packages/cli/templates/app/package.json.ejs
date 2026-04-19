@@ -12,10 +12,9 @@
     "test:watch": "vitest",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "seed": "npx feathers-baas seed"<% if (database !== 'mongodb') { %>,
-    "db:migrate": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:latest --knexfile knexfile.ts",
-    "db:rollback": "node --import tsx/esm ./node_modules/knex/bin/cli.js migrate:rollback --knexfile knexfile.ts",
-    "db:seed": "node --import tsx/esm ./node_modules/knex/bin/cli.js seed:run --knexfile knexfile.ts"<% } %>
+    "migrate": "npx feathers-baas migrate",
+    "rollback": "npx feathers-baas rollback",
+    "seed": "npx feathers-baas seed"
   },
   "dependencies": {
     "@feathers-baas/core": "^<%- versions.core %>",

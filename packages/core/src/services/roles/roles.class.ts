@@ -19,9 +19,31 @@ export function parseRolePermissions(role: unknown): Role {
   }
 }
 
+// jsonb columns need a JSON string, not a JS array — node-postgres otherwise
+// coerces arrays to a Postgres array literal and the insert fails with
+// "invalid input syntax for type json". Applies to both internal (_create /
+// _patch used by seedDatabase) and external callers.
+function stringifyPermissions<T extends { permissions?: unknown }>(data: T): T {
+  if (data.permissions === undefined || typeof data.permissions === 'string') return data
+  return { ...data, permissions: JSON.stringify(data.permissions) as unknown as T['permissions'] }
+}
+
 export class RolesClass extends KnexService<Role, RoleData, RolesParams, RolePatch> {
   constructor(options: KnexAdapterOptions, public app: Application) {
     super(options)
+  }
+
+  override async _create(data: RoleData, params?: RolesParams): Promise<Role>
+  override async _create(data: RoleData[], params?: RolesParams): Promise<Role[]>
+  override async _create(data: RoleData | RoleData[], params?: RolesParams): Promise<Role | Role[]> {
+    const normalized = Array.isArray(data) ? data.map(stringifyPermissions) : stringifyPermissions(data)
+    return super._create(normalized as RoleData | RoleData[], params)
+  }
+
+  override async _patch(id: null, data: RolePatch, params?: RolesParams): Promise<Role[]>
+  override async _patch(id: string, data: RolePatch, params?: RolesParams): Promise<Role>
+  override async _patch(id: string | null, data: RolePatch, params?: RolesParams): Promise<Role | Role[]> {
+    return super._patch(id as string, stringifyPermissions(data), params)
   }
 }
 

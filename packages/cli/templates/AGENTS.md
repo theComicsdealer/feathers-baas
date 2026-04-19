@@ -151,10 +151,9 @@ pnpm dev           # Start dev server with hot reload
 pnpm build         # Build with tsup
 pnpm typecheck     # Run tsc --noEmit
 pnpm test          # Run vitest
+pnpm migrate       # Run pending migrations (no-op for MongoDB)
+pnpm rollback      # Roll back the last migration batch (no-op for MongoDB)
 pnpm seed          # Seed default roles and admin user
-pnpm db:migrate    # Run Knex migrations (SQL databases only)
-pnpm db:rollback   # Rollback last migration batch
-pnpm db:seed       # Run Knex seed files
 ```
 
 ## CLI commands
@@ -163,6 +162,8 @@ pnpm db:seed       # Run Knex seed files
 npx feathers-baas init              # Scaffold a new project
 npx feathers-baas generate service  # Generate a new service
 npx feathers-baas generate hook     # Generate a new hook
+npx feathers-baas migrate           # Run pending migrations
+npx feathers-baas rollback          # Roll back last migration batch (--all to reset)
 npx feathers-baas seed              # Seed roles and admin user
 npx feathers-baas doctor            # Check project health
 npx feathers-baas describe          # Introspect services (JSON)

@@ -63,11 +63,9 @@ export class InitCommand extends Command {
       if (!this.install) {
         console.log('  pnpm install')
       }
-      console.log('  # Edit .env with your database URL and JWT secret')
-      if (database !== 'mongodb') {
-        console.log('  pnpm db:migrate')
-        console.log('  pnpm db:seed')
-      }
+      console.log('  # Edit .env — set DB URL, JWT_SECRET, and (optionally) ADMIN_EMAIL / ADMIN_PASSWORD')
+      console.log('  npx feathers-baas migrate   # SQL databases only — no-op for MongoDB')
+      console.log('  npx feathers-baas seed      # seed default roles + admin user')
       console.log('  pnpm dev')
       console.log()
       output.info('Generate services:')

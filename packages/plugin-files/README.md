@@ -31,7 +31,7 @@ configureFiles(app, {
 Then run the migration to create the `files` table:
 
 ```bash
-pnpm db:migrate
+pnpm migrate
 ```
 
 ## Drivers
