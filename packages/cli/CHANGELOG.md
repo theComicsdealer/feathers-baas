@@ -1,5 +1,14 @@
 # feathers-baas
 
+## 0.3.9
+
+### Patch Changes
+
+- Add `feathers-baas migrate` and `feathers-baas rollback` CLI commands backed by programmatic Knex API (tsx-loaded); drop `db:migrate`/`db:seed`/`db:rollback` knex-cli scripts
+- Ship default core migrations with generated PostgreSQL projects (roles, users, user_role index, files tables)
+- Update generated `package.json` scripts to use `npx feathers-baas migrate/rollback/seed`
+- Update `feathers-baas init` next-steps output to use CLI-form commands with SQL-only annotation for migrate
+
 ## 0.3.8
 
 ### Patch Changes

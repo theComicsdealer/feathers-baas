@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.2.7
+
+### Patch Changes
+
+- Fix jsonb serialization in `RolesClass`: override `_create`/`_patch` to JSON.stringify permissions before insert/patch, preventing "invalid input syntax for type json" when seed bypasses hook chain
+
 ## 0.2.6
 
 ### Patch Changes
