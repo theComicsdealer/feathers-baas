@@ -72,6 +72,23 @@ function preventEmptyRoles(context: HookContext<Application>): void {
   }
 }
 
+// ─── Ownership guard ─────────────────────────────────────────────────────────
+
+function enforceSelfPatch(context: HookContext<Application>): void {
+  const caller = context.params.user as { id?: string; roles?: string[] } | undefined
+  if (!caller) throw new Forbidden('No authenticated user')
+
+  if (caller.roles?.includes('admin')) return
+
+  if (!context.id) {
+    throw new Forbidden('Bulk patch is not allowed')
+  }
+
+  if (String(context.id) !== String(caller.id)) {
+    throw new Forbidden('You can only patch your own account')
+  }
+}
+
 // ─── Uniqueness check ────────────────────────────────────────────────────────
 
 async function checkEmailUnique(context: HookContext<Application>): Promise<void> {
@@ -150,16 +167,17 @@ export const usersHooks = {
       addVerification('authManagement'),
       coerceVerificationDates,
     ],
-    update: [iff(isProvider('rest'), checkPermissions), setTimestamps],
+    update: [iff(isProvider('rest'), checkPermissions), iff(isProvider('rest'), enforceSelfPatch), setTimestamps],
     patch: [
       iff(isProvider('rest'), checkPermissions),
+      iff(isProvider('rest'), enforceSelfPatch),
       iff(isProvider('rest'), preventAdminRole),
       preventEmptyRoles,
       hashPassword,
       setTimestamps,
       coerceVerificationDates,
     ],
-    remove: [iff(isProvider('rest'), checkPermissions)],
+    remove: [iff(isProvider('rest'), checkPermissions), iff(isProvider('rest'), enforceSelfPatch)],
   },
   after: {
     all: [stripPassword],

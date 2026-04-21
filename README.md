@@ -198,6 +198,68 @@ curl -s http://localhost:3030/roles \
 
 ---
 
+## JWT Authentication
+
+### How it works
+
+**1. Login — get a token**
+
+`POST /authentication` with `{ strategy: 'local', email, password }`:
+
+- The `ArgonLocalStrategy` looks up the user by email and verifies the password with **argon2id**
+- On success, a signed JWT is returned with the user's `id` in the payload
+- Token parameters: HS256, audience `https://feathers-baas.app`, issuer `feathers-baas`, expiry `JWT_EXPIRY` (default `15m`)
+
+```bash
+curl -s -X POST http://localhost:3030/authentication \
+  -H 'Content-Type: application/json' \
+  -d '{"strategy":"local","email":"user@example.com","password":"secret"}' | jq .accessToken
+```
+
+**2. Authenticated request**
+
+Pass the token in every request as `Authorization: Bearer <token>`.
+
+The Koa `parseAuthentication()` middleware extracts the token before any hook runs. The `authenticate('jwt')` hook then:
+
+1. Validates the token (secret, algorithm, expiry, audience, issuer)
+2. Decodes the payload to get the user `id`
+3. Fetches the full user record from the `users` service
+4. Populates `context.params.user` for all downstream hooks
+
+**3. Permission check (RBAC)**
+
+After the user is on `context.params`, the `checkPermissions` hook:
+
+1. Reads `context.params.user.roles` (e.g. `['user']`)
+2. Fetches the matching `Role` documents (LRU-cached, 5-minute TTL)
+3. Each role has a `permissions` array of `{ service, methods[] }` entries — `"*"` wildcards are supported
+4. Throws `403 Forbidden` if no role grants the requested method on the requested service
+
+**4. Token refresh**
+
+Login issues both an `accessToken` (short-lived) and a `refreshToken` (long-lived). When the access token expires, exchange the refresh token for a new one:
+
+```bash
+curl -s -X POST http://localhost:3030/authentication/refresh \
+  -H 'Content-Type: application/json' \
+  -d '{"refreshToken":"<refreshToken>"}' | jq .accessToken
+```
+
+Returns `{ accessToken, user }`. The refresh token itself is not rotated — keep it safe and use it to get new access tokens until it expires (default 7 days).
+
+The refresh token uses `typ: refresh` in the JWT header so it is rejected by the standard `/authentication` endpoint, and access tokens are rejected by `/authentication/refresh`.
+
+### Token configuration
+
+| Env var | Default | Description |
+|---|---|---|
+| `JWT_SECRET` | *(required)* | HMAC signing secret — min 32 characters |
+| `JWT_EXPIRY` | `15m` | Access token lifetime |
+| `JWT_REFRESH_EXPIRY` | `7d` | Refresh token lifetime |
+
+---
+
 ## Auth Management
 
 Built on [`feathers-authentication-management`](https://github.com/feathersjs-ecosystem/feathers-authentication-management), the `authManagement` service handles the full lifecycle of email verification and password reset — no custom code needed.

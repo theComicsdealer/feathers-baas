@@ -9,12 +9,16 @@ import * as output from '../utils/output.js'
 
 export interface FieldDefinition {
   name: string
-  type: 'string' | 'number' | 'boolean' | 'text' | 'json'
+  type: 'string' | 'number' | 'boolean' | 'text' | 'json' | 'date' | 'ref'
   required: boolean
   queryable: boolean
   typebox: string
   typeboxBase: string
   knexColumn: string
+  knexFkIndex?: string
+  isRef: boolean
+  ref?: string        // target service name (e.g. 'users', 'blog-posts')
+  populatedName?: string  // derived key for the resolved record (e.g. authorId → author)
 }
 
 export interface ServiceGeneratorOptions {
@@ -22,49 +26,74 @@ export interface ServiceGeneratorOptions {
   fields: FieldDefinition[]
   projectRoot: string
   database: Database
+  populate: boolean
 }
 
-function typeboxBaseForType(type: string): string {
+function typeboxBaseForType(type: string, database: Database = 'postgresql'): string {
+  if (type === 'ref') return database === 'mongodb' ? 'Type.String()' : 'Type.String({ format: \'uuid\' })'
   const base: Record<string, string> = {
     string: 'Type.String()',
     number: 'Type.Number()',
     boolean: 'Type.Boolean()',
     text: 'Type.String()',
     json: 'Type.Any()',
+    date: 'Type.String({ format: \'date-time\' })',
   }
   return base[type] ?? 'Type.String()'
 }
 
-function typeboxForField(field: { name: string; type: string; required: boolean }): string {
-  const expr = typeboxBaseForType(field.type)
+function typeboxForField(field: { name: string; type: string; required: boolean }, database: Database = 'postgresql'): string {
+  const expr = typeboxBaseForType(field.type, database)
   return field.required ? expr : `Type.Optional(${expr})`
 }
 
-function knexColumnForField(field: { name: string; type: string; required: boolean }): string {
+function knexColumnForField(field: { name: string; type: string; required: boolean; ref?: string }): string {
   const snakeName = toSnakeCase(field.name)
+  const nullability = field.required ? '.notNullable()' : '.nullable()'
+  if (field.type === 'ref') {
+    const refTable = toSnakeCase(field.ref ?? field.name)
+    return `table.uuid('${snakeName}')${nullability}.references('id').inTable('${refTable}').onDelete('RESTRICT')`
+  }
   const map: Record<string, string> = {
     string: `table.string('${snakeName}')`,
     number: `table.integer('${snakeName}')`,
     boolean: `table.boolean('${snakeName}')`,
     text: `table.text('${snakeName}')`,
     json: `table.jsonb('${snakeName}')`,
+    date: `table.timestamp('${snakeName}', { useTz: true })`,
   }
   const col = map[field.type] ?? `table.string('${snakeName}')`
-  return field.required ? `${col}.notNullable()` : `${col}.nullable()`
+  return `${col}${nullability}`
+}
+
+function populatedNameFor(camelName: string): string {
+  return camelName.endsWith('Id') && camelName.length > 2
+    ? camelName.slice(0, -2)
+    : camelName
 }
 
 export function buildFields(
-  raw: Array<{ name: string; type: string; required?: boolean }>,
+  raw: Array<{ name: string; type: string; required?: boolean; ref?: string }>,
+  database: Database = 'postgresql',
 ): FieldDefinition[] {
-  return raw.map((f) => ({
-    name: toCamelCase(f.name),
-    type: f.type as FieldDefinition['type'],
-    required: f.required ?? true,
-    queryable: ['string', 'number', 'boolean'].includes(f.type),
-    typebox: typeboxForField({ ...f, name: toCamelCase(f.name), required: f.required ?? true }),
-    typeboxBase: typeboxBaseForType(f.type),
-    knexColumn: knexColumnForField({ ...f, name: toCamelCase(f.name), required: f.required ?? true }),
-  }))
+  return raw.map((f) => {
+    const name = toCamelCase(f.name)
+    const required = f.required ?? true
+    const isRef = f.type === 'ref'
+    return {
+      name,
+      type: f.type as FieldDefinition['type'],
+      required,
+      queryable: isRef || ['string', 'number', 'boolean', 'date'].includes(f.type),
+      typebox: typeboxForField({ ...f, name, required }, database),
+      typeboxBase: typeboxBaseForType(f.type, database),
+      knexColumn: knexColumnForField({ ...f, name, required }),
+      knexFkIndex: isRef ? `table.index('${toSnakeCase(name)}')` : undefined,
+      isRef,
+      ref: f.ref,
+      populatedName: isRef ? populatedNameFor(name) : undefined,
+    }
+  })
 }
 
 export function generateService(opts: ServiceGeneratorOptions): void {
@@ -84,7 +113,9 @@ export function generateService(opts: ServiceGeneratorOptions): void {
 
   mkdirSync(serviceDir, { recursive: true })
 
-  const templateData = { kebabName, camelName, pascalName, tableName, fields, database }
+  const { populate } = opts
+  const refFields = fields.filter((f) => f.isRef)
+  const templateData = { kebabName, camelName, pascalName, tableName, fields, database, populate, refFields }
 
   const filesToCreate: Array<{ template: string; filename: string; dir: string }> = [
     { template: 'service/schema.ts.ejs', filename: `${kebabName}.schema.ts`, dir: serviceDir },

@@ -2,7 +2,33 @@
 import { authenticate } from '@feathersjs/authentication'
 import { iff, isProvider } from 'feathers-hooks-common'
 import { checkPermissions } from '../../hooks/permission-check.js'
+import { setTimestamps } from '../../hooks/timestamps.js'
+<% if (populate && refFields.length > 0) { %>
+import type { HookContext } from '@feathersjs/feathers'
+import type { Application } from '../../declarations.js'
 
+async function populateRefs(context: HookContext<Application>): Promise<void> {
+  const result = context.result as Record<string, unknown>
+  const records: Record<string, unknown>[] = Array.isArray(
+    (result as { data?: unknown[] }).data,
+  )
+    ? (result as { data: Record<string, unknown>[] }).data
+    : [result]
+<% for (const f of refFields) { %>
+  const <%- f.populatedName %>Ids = [
+    ...new Set(records.map((r) => r['<%- f.name %>'] as string).filter(Boolean)),
+  ]
+  const <%- f.populatedName %>Map: Record<string, unknown> = {}
+  if (<%- f.populatedName %>Ids.length > 0) {
+    const rows = await (context.app.service('<%- f.ref %>') as unknown as {
+      _find(p: object): Promise<Record<string, unknown>[]>
+    })._find({ paginate: false, query: { id: { $in: <%- f.populatedName %>Ids } } })
+    for (const row of rows) <%- f.populatedName %>Map[row['id'] as string] = row
+  }
+  for (const r of records) r['<%- f.populatedName %>'] = <%- f.populatedName %>Map[r['<%- f.name %>'] as string]
+<% } %>
+}
+<% } %>
 export const <%- camelName %>Hooks = {
   around: {
     all: [authenticate('jwt')],
@@ -11,12 +37,16 @@ export const <%- camelName %>Hooks = {
     all: [iff(isProvider('rest'), checkPermissions)],
     find: [],
     get: [],
-    create: [],
-    patch: [],
+    create: [setTimestamps],
+    patch: [setTimestamps],
     remove: [],
   },
   after: {
     all: [],
+<% if (populate && refFields.length > 0) { %>
+    get: [populateRefs],
+    find: [populateRefs],
+<% } %>
   },
   error: {},
 }

@@ -14,6 +14,7 @@ import { resolveConfig } from './configuration.js'
 import { logger } from './logger.js'
 import { configureKnex, configureMysql, configureSqlite, configureMongo } from './db/index.js'
 import { configureAuth } from './auth/index.js'
+import { configureRefresh } from './auth/refresh.js'
 import { configureAuthManagement } from './auth/auth-management.js'
 import { configureServices } from './services/index.js'
 import { configureChannels } from './channels.js'
@@ -73,6 +74,7 @@ export async function createApp(options?: CreateAppOptions): Promise<Application
 
   // 6. Authentication
   configureAuth(app)
+  configureRefresh(app)
 
   // 7. Services
   configureServices(app)

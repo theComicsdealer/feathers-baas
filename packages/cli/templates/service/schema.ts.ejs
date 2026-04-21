@@ -10,6 +10,7 @@ export const <%- camelName %>Schema = Type.Object(
 <% } -%>
     createdAt: Type.String({ format: 'date-time' }),
     updatedAt: Type.String({ format: 'date-time' }),
+    deletedAt: Type.Optional(Type.String({ format: 'date-time' })),
   },
   { $id: '<%- pascalName %>', additionalProperties: false },
 )

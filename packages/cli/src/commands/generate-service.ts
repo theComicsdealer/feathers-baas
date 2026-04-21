@@ -12,7 +12,10 @@ interface RawField {
   name: string
   type: string
   required?: boolean
+  ref?: string
 }
+
+const SCALAR_TYPES = ['string', 'number', 'boolean', 'text', 'json', 'date']
 
 async function promptFields(): Promise<RawField[]> {
   const fields: RawField[] = []
@@ -21,13 +24,20 @@ async function promptFields(): Promise<RawField[]> {
   while (addMore) {
     const name = await input({ message: 'Field name:' })
     const type = await input({
-      message: `Field type for "${name}" (string, number, boolean, text, json):`,
+      message: `Field type for "${name}" (string, number, boolean, text, json, date, ref):`,
       default: 'string',
       validate: (v) =>
-        ['string', 'number', 'boolean', 'text', 'json'].includes(v) || 'Must be one of: string, number, boolean, text, json',
+        [...SCALAR_TYPES, 'ref'].includes(v) || 'Must be one of: string, number, boolean, text, json, date, ref',
     })
+    let ref: string | undefined
+    if (type === 'ref') {
+      ref = await input({
+        message: `Target service name for "${name}" (e.g. users, blog-posts):`,
+        validate: (v) => /^[a-z][a-z0-9-]*$/.test(v) || 'Must be lowercase with hyphens only',
+      })
+    }
     const required = await confirm({ message: `Is "${name}" required?`, default: true })
-    fields.push({ name, type, required })
+    fields.push({ name, type, required, ref })
     addMore = await confirm({ message: 'Add another field?', default: true })
   }
 
@@ -39,6 +49,11 @@ function parseFieldsFlag(raw: string): RawField[] {
     const parts = entry.trim().split(':')
     const name = parts[0]!
     const type = parts[1] ?? 'string'
+    if (type === 'ref') {
+      const ref = parts[2] ?? ''
+      const required = parts[3] !== 'optional'
+      return { name, type, ref, required }
+    }
     const required = parts[2] !== 'optional'
     return { name, type, required }
   })
@@ -57,9 +72,10 @@ export class GenerateServiceCommand extends Command {
   })
 
   name = Option.String('--name,-n', { description: 'Service name (kebab-case)', required: false })
-  fields = Option.String('--fields,-f', { description: 'Comma-separated fields (name:type[:optional])', required: false })
+  fields = Option.String('--fields,-f', { description: 'Comma-separated fields (name:type[:optional] or name:ref:service[:optional])', required: false })
   projectPath = Option.String('--path,-p', { description: 'Project root path', required: false })
   database = Option.String('--database,-d', { description: 'Database: postgresql, mysql, sqlite, mongodb (auto-detected by default)', required: false })
+  populate = Option.Boolean('--populate', { description: 'Generate populate hook that resolves ref fields to full records', required: false })
 
   async execute(): Promise<void> {
     try {
@@ -69,6 +85,17 @@ export class GenerateServiceCommand extends Command {
         message: 'Service name (kebab-case, e.g. "blog-posts"):',
         validate: (v) => /^[a-z][a-z0-9-]*$/.test(v) || 'Must be lowercase with hyphens only',
       })
+
+      let database: Database
+      if (this.database) {
+        if (!VALID_DATABASES.includes(this.database as Database)) {
+          throw new Error(`Invalid database "${this.database}". Must be one of: ${VALID_DATABASES.join(', ')}`)
+        }
+        database = this.database as Database
+      } else {
+        database = detectDatabase(projectRoot)
+        output.info(`Detected database: ${database}`)
+      }
 
       let rawFields: RawField[]
       if (this.fields) {
@@ -82,21 +109,11 @@ export class GenerateServiceCommand extends Command {
         output.info('No fields specified — added default "name" field')
       }
 
-      const fields = buildFields(rawFields)
-
-      let database: Database
-      if (this.database) {
-        if (!VALID_DATABASES.includes(this.database as Database)) {
-          throw new Error(`Invalid database "${this.database}". Must be one of: ${VALID_DATABASES.join(', ')}`)
-        }
-        database = this.database as Database
-      } else {
-        database = detectDatabase(projectRoot)
-        output.info(`Detected database: ${database}`)
-      }
+      const fields = buildFields(rawFields, database)
+      const populate = this.populate ?? false
 
       output.info(`Generating service "${serviceName}"...`)
-      generateService({ name: serviceName, fields, projectRoot, database })
+      generateService({ name: serviceName, fields, projectRoot, database, populate })
       output.success(`Service "${serviceName}" generated successfully!`)
       output.info('Next steps:')
       console.log('  1. Review the generated files')
