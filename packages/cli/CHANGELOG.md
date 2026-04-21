@@ -1,5 +1,19 @@
 # feathers-baas
 
+## 0.4.0
+
+### Minor Changes
+
+- Add `ref` field type and `--populate` flag to `generate service`
+  - New `ref` field type declares a foreign-key (or MongoDB reference) relationship:
+    `authorId:ref:users` or `authorId:ref:users:optional`
+  - SQL adapters emit a proper FK constraint (`references('id').inTable(...).onDelete('RESTRICT')`) and an index in the generated migration
+  - MongoDB adapters generate a plain `Type.String()` field (no FK concept)
+  - New `--populate` flag generates a batched `populateRefs` after hook on `get` and `find` that resolves ref fields to full records (no N+1: uses `_find` + `$in` per ref type)
+  - Populated key is derived automatically: `authorId` → `author`, `categoryId` → `category`
+  - Add `date` as a first-class scalar field type (`Type.String({ format: 'date-time' })` / `timestamp` column)
+  - `ref` fields are automatically queryable (`GET /posts?authorId=xxx` works out of the box)
+
 ## 0.3.13
 
 ### Patch Changes

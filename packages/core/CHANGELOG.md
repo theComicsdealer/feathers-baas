@@ -1,5 +1,17 @@
 # @feathers-baas/core
 
+## 0.3.0
+
+### Minor Changes
+
+- Fix cross-user patch vulnerability and implement refresh token flow
+
+  **Security fix:** regular users could previously `patch`, `update`, or `delete` any user record including admins. A new `enforceSelfPatch` hook now blocks non-admin callers from acting on any record other than their own. Bulk operations without an explicit `id` are also rejected.
+
+  **Refresh tokens:** `POST /authentication` with `strategy: local` now returns a `refreshToken` alongside `accessToken`. The refresh token is a separate JWT signed with `typ: refresh` and a longer expiry (`JWT_REFRESH_EXPIRY`, default `7d`). Exchange it for a new access token at `POST /authentication/refresh` without re-entering credentials. Access tokens and refresh tokens are rejected at each other's endpoints.
+
+  **Generated service timestamps:** new services now include `createdAt`, `updatedAt`, and optional `deletedAt` fields in their schema, and the `setTimestamps` hook is wired into `create` and `patch` by default.
+
 ## 0.2.8
 
 ### Patch Changes
