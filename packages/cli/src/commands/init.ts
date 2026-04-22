@@ -3,7 +3,7 @@ import { Command, Option } from 'clipanion'
 import { input, select } from '@inquirer/prompts'
 import { resolve } from 'node:path'
 import { execSync } from 'node:child_process'
-import { generateApp } from '../generators/app.generator.js'
+import { generateApp, type StorageDriver, type EmailDriver } from '../generators/app.generator.js'
 import * as output from '../utils/output.js'
 
 type Database = 'postgresql' | 'mysql' | 'sqlite' | 'mongodb'
@@ -16,12 +16,14 @@ export class InitCommand extends Command {
     examples: [
       ['Interactive mode', 'feathers-baas init'],
       ['With project name', 'feathers-baas init my-api'],
-      ['With all flags', 'feathers-baas init my-api --database postgresql --install'],
+      ['With all flags', 'feathers-baas init my-api --database postgresql --storage s3 --email resend --install'],
     ],
   })
 
   projectName = Option.String({ required: false, name: 'name' })
   database = Option.String('--database,-d', { description: 'Database: postgresql, mysql, sqlite, mongodb', required: false })
+  storage = Option.String('--storage', { description: 'File storage driver: local, s3, gcs, none', required: false })
+  email = Option.String('--email', { description: 'Email driver: none, smtp, resend, sendgrid, brevo', required: false })
   install = Option.Boolean('--install,-i', false, { description: 'Run package manager install after scaffolding' })
 
   async execute(): Promise<void> {
@@ -42,11 +44,34 @@ export class InitCommand extends Command {
         default: 'postgresql',
       })
 
+      const storageDriver: StorageDriver = (this.storage as StorageDriver) ?? await select({
+        message: 'File storage driver:',
+        choices: [
+          { value: 'local' as const, name: 'Local filesystem (dev/single-node)' },
+          { value: 's3' as const, name: 'S3 / MinIO / LocalStack' },
+          { value: 'gcs' as const, name: 'Google Cloud Storage' },
+          { value: 'none' as const, name: 'None (add later)' },
+        ],
+        default: 'local',
+      })
+
+      const emailDriver: EmailDriver = (this.email as EmailDriver) ?? await select({
+        message: 'Email driver (for auth emails — verify, reset password):',
+        choices: [
+          { value: 'none' as const, name: 'None (log to console)' },
+          { value: 'smtp' as const, name: 'SMTP (Mailtrap, Postfix, etc.)' },
+          { value: 'resend' as const, name: 'Resend' },
+          { value: 'sendgrid' as const, name: 'SendGrid' },
+          { value: 'brevo' as const, name: 'Brevo' },
+        ],
+        default: 'none',
+      })
+
       const projectRoot = resolve(projectName)
 
       output.info(`Scaffolding "${projectName}" with ${database}...\n`)
 
-      generateApp({ projectName, database, projectRoot })
+      generateApp({ projectName, database, projectRoot, storageDriver, emailDriver })
 
       if (this.install) {
         output.info('\nInstalling dependencies...')
@@ -63,7 +88,7 @@ export class InitCommand extends Command {
       if (!this.install) {
         console.log('  pnpm install')
       }
-      console.log('  # Edit .env — set DB URL, JWT_SECRET, and (optionally) ADMIN_EMAIL / ADMIN_PASSWORD')
+      console.log('  # Edit .env — fill in credentials for your chosen drivers')
       console.log('  npx feathers-baas migrate   # SQL databases only — no-op for MongoDB')
       console.log('  npx feathers-baas seed      # seed default roles + admin user')
       console.log('  pnpm dev')

@@ -1,5 +1,27 @@
 # @feathers-baas/core
 
+## 0.3.2
+
+### Patch Changes
+
+- Make token refresh compatible with `@feathersjs/authentication-client`
+
+  The previous `/authentication/refresh` endpoint was outside the Feathers auth client flow — `reAuthenticate()` only knows how to call `POST /authentication`, so an expired access token always failed.
+
+  The refresh token is now stored in an **HTTP-only cookie** (`feathers-refresh`) at login. A custom `BaasJWTStrategy` reads this cookie when it detects a `TokenExpiredError`: it verifies the refresh token, looks up the user, and returns an auth result that causes `AuthenticationService` to issue a fresh access token — all inside the standard `POST /authentication` call that `reAuthenticate()` makes.
+
+  Browser clients using `@feathersjs/authentication-client` now get transparent token refresh with no client-side changes. Non-browser / API clients can still use `POST /authentication/refresh` with the `refreshToken` from the login response body.
+
+  Logout (`DELETE /authentication`) clears the refresh cookie.
+
+## 0.3.1
+
+### Patch Changes
+
+- Fix generated service hooks failing to resolve `setTimestamps` and `checkPermissions` in external projects
+
+  The hooks template was importing both helpers via relative paths (`../../hooks/...`) that only resolve inside the monorepo itself. Generated projects now import them from `@feathers-baas/core` instead. `setTimestamps` has been added to the core public exports.
+
 ## 0.3.0
 
 ### Minor Changes

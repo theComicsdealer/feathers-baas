@@ -238,7 +238,17 @@ After the user is on `context.params`, the `checkPermissions` hook:
 
 **4. Token refresh**
 
-Login issues both an `accessToken` (short-lived) and a `refreshToken` (long-lived). When the access token expires, exchange the refresh token for a new one:
+At login, the server issues a short-lived `accessToken` (default `15m`) and a long-lived `refreshToken` (default `7d`). Two refresh paths are supported depending on the client:
+
+**Browser clients using `@feathersjs/authentication-client` — transparent, no code needed**
+
+The refresh token is stored in an HTTP-only cookie (`feathers-refresh`) by the server at login. When `reAuthenticate()` sends an expired access token to `POST /authentication`, the server reads the cookie, verifies the refresh token, and returns a fresh access token automatically. The Feathers auth client stores it and continues — no client-side changes required.
+
+Logout (`DELETE /authentication`) clears the cookie server-side.
+
+**API / mobile clients — explicit refresh endpoint**
+
+The `refreshToken` is also included in the login response body. When the access token expires, exchange it manually:
 
 ```bash
 curl -s -X POST http://localhost:3030/authentication/refresh \
@@ -246,9 +256,11 @@ curl -s -X POST http://localhost:3030/authentication/refresh \
   -d '{"refreshToken":"<refreshToken>"}' | jq .accessToken
 ```
 
-Returns `{ accessToken, user }`. The refresh token itself is not rotated — keep it safe and use it to get new access tokens until it expires (default 7 days).
+Returns `{ accessToken, user }`.
 
-The refresh token uses `typ: refresh` in the JWT header so it is rejected by the standard `/authentication` endpoint, and access tokens are rejected by `/authentication/refresh`.
+Access tokens (`typ: access`) are rejected at `/authentication/refresh`, and refresh tokens (`typ: refresh`) are rejected at `POST /authentication` — the two token types cannot be substituted for each other.
+
+> **Cross-origin deployments:** the refresh cookie is `SameSite: lax` by default. If your frontend is on a different domain from the API, set `sameSite: 'none'` (requires HTTPS) in `auth/index.ts`.
 
 ### Token configuration
 
@@ -256,7 +268,7 @@ The refresh token uses `typ: refresh` in the JWT header so it is rejected by the
 |---|---|---|
 | `JWT_SECRET` | *(required)* | HMAC signing secret — min 32 characters |
 | `JWT_EXPIRY` | `15m` | Access token lifetime |
-| `JWT_REFRESH_EXPIRY` | `7d` | Refresh token lifetime |
+| `JWT_REFRESH_EXPIRY` | `7d` | Refresh token lifetime (cookie + response body) |
 
 ---
 

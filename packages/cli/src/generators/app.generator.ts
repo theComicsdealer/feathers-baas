@@ -5,10 +5,15 @@ import { execSync } from 'node:child_process'
 import { renderTemplate, getTemplatePath } from '../utils/template.js'
 import * as output from '../utils/output.js'
 
+export type StorageDriver = 'local' | 's3' | 'gcs' | 'none'
+export type EmailDriver = 'none' | 'smtp' | 'resend' | 'sendgrid' | 'brevo'
+
 export interface AppOptions {
   projectName: string
   database: 'postgresql' | 'mysql' | 'sqlite' | 'mongodb'
   projectRoot: string
+  storageDriver: StorageDriver
+  emailDriver: EmailDriver
 }
 
 function copyTemplateDir(templateRelDir: string, destDir: string, projectRoot: string): void {
@@ -48,7 +53,7 @@ const KNEX_EJS_FILES = [
 ]
 
 export function generateApp(options: AppOptions): void {
-  const { projectName, database, projectRoot } = options
+  const { projectName, database, projectRoot, storageDriver, emailDriver } = options
 
   if (existsSync(projectRoot)) {
     throw new Error(`Directory "${projectRoot}" already exists. Use a different name or remove it first.`)
@@ -64,7 +69,7 @@ export function generateApp(options: AppOptions): void {
     pluginNotifications: getLatestVersion('@feathers-baas/plugin-notifications'),
   }
 
-  const templateData = { projectName, database, versions }
+  const templateData = { projectName, database, versions, storageDriver, emailDriver }
 
   // Copy static files
   for (const file of STATIC_FILES) {

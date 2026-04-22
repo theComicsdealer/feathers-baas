@@ -1,5 +1,27 @@
 # feathers-baas
 
+## 0.5.0
+
+### Minor Changes
+
+- Add storage and email driver selection to `init` command
+
+  The `init` command now prompts for (or accepts via flags) a file storage driver and an email driver. The generated `.env.example` (and `.env`) contain only the env vars relevant to the chosen drivers, with clear comments and placeholders — no more hunting for which variables are needed.
+
+  New flags:
+  - `--storage <local|s3|gcs|none>` — defaults to `local`
+  - `--email <none|smtp|resend|sendgrid|brevo>` — defaults to `none`
+
+  S3 and GCS env var blocks are also added to `packages/core/.env.example` for monorepo development.
+
+## 0.4.1
+
+### Patch Changes
+
+- Fix generated service hooks failing to resolve `setTimestamps` and `checkPermissions` in external projects
+
+  The hooks template was importing both helpers via relative paths (`../../hooks/...`) that only resolve inside the monorepo itself. Generated projects now import them from `@feathers-baas/core` instead. `setTimestamps` has been added to the core public exports.
+
 ## 0.4.0
 
 ### Minor Changes
