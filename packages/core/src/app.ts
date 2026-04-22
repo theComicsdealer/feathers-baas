@@ -62,10 +62,19 @@ export async function createApp(options?: CreateAppOptions): Promise<Application
   configureHealth(app)
   configureOpenApi(app)
 
-  // 4. Transports
+  // 4. Expose raw IncomingMessage for multipart hooks (busboy).
+  // Must be registered before configure(rest()) because @feathersjs/koa's
+  // servicesMiddleware reads ctx.feathers once to build params; anything added
+  // after that call is invisible to hooks.
+  app.use(async (ctx: import('@feathersjs/koa').Koa.Context, next: () => Promise<void>) => {
+    ctx.feathers = { ...ctx.feathers, req: ctx.req } as typeof ctx.feathers
+    return next()
+  })
+
+  // 5. Transports
   app.configure(rest())
 
-  // 5. Database — auto-detect from config
+  // 6. Database — auto-detect from config
   if (config.postgres) {
     await configureKnex(app)
   } else if (config.mysql) {

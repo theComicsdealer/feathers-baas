@@ -1,5 +1,11 @@
 # @feathers-baas/core
 
+## 0.3.4
+
+### Patch Changes
+
+- Fix file upload "The query is empty" error by injecting `ctx.req` (raw IncomingMessage) into `ctx.feathers` before the Feathers REST transport builds `params`. The `handleUpload` hook reads `context.params.req` to stream multipart data via busboy; without this injection the hook returned early leaving `context.data` empty, causing Knex to throw on an empty insert.
+
 ## 0.3.3
 
 ### Patch Changes
