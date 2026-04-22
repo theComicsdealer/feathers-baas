@@ -1,5 +1,13 @@
 # @feathers-baas/core
 
+## 0.3.3
+
+### Patch Changes
+
+- Fix "request entity too large" error on file uploads
+
+  `bodyParser()` was running on all requests including `multipart/form-data` with a default 1 MB limit, intercepting uploads before busboy could stream them. It now skips multipart requests (`multipart: false`) so busboy handles them directly, and the JSON/form limit is raised to 10 MB.
+
 ## 0.3.2
 
 ### Patch Changes

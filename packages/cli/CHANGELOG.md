@@ -1,5 +1,13 @@
 # feathers-baas
 
+## 0.5.1
+
+### Patch Changes
+
+- Fix `POST /files` returning 404 in generated projects
+
+  `configureFiles` was never called in the generated `src/index.ts` — the plugin auto-discovery is intentionally a no-op because it requires explicit driver configuration. The `index.ts` template now calls `configureFiles` with the driver chosen at `init` time, reading credentials from env vars. MongoDB projects get a TODO comment (the plugin currently requires Knex).
+
 ## 0.5.0
 
 ### Minor Changes

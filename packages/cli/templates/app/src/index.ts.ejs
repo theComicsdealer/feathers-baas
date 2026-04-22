@@ -1,14 +1,64 @@
 import 'dotenv/config'
 import { createApp, logger } from '@feathers-baas/core'
+<% if (storageDriver !== 'none' && database !== 'mongodb') { -%>
+import {
+  configureFiles,
+<% if (storageDriver === 'local') { -%>
+  LocalDriver,
+<% } else if (storageDriver === 's3') { -%>
+  S3Driver,
+<% } else if (storageDriver === 'gcs') { -%>
+  GCSDriver,
+<% } -%>
+} from '@feathers-baas/plugin-files'
+<% } -%>
 import { configureServices } from './services/index.js'
 
 const startTime = Date.now()
 
-const app = await createApp({
-  configureServices,
-})
+const app = await createApp({ configureServices })
 
 const config = app.get('config')
+
+<% if (storageDriver === 'local' && database !== 'mongodb') { -%>
+configureFiles(app, {
+  driver: new LocalDriver({
+    directory: './uploads',
+    jwtSecret: config.jwtSecret,
+    baseUrl: process.env['APP_URL'] ?? `http://localhost:${String(config.port)}`,
+  }),
+  driverType: 'local',
+  bucket: 'uploads',
+})
+<% } else if (storageDriver === 's3' && database !== 'mongodb') { -%>
+configureFiles(app, {
+  driver: new S3Driver({
+    bucket: process.env['AWS_S3_BUCKET']!,
+    region: process.env['AWS_REGION'] ?? 'us-east-1',
+    accessKeyId: process.env['AWS_ACCESS_KEY_ID'],
+    secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'],
+    ...(process.env['AWS_ENDPOINT']
+      ? { endpoint: process.env['AWS_ENDPOINT'], forcePathStyle: process.env['AWS_FORCE_PATH_STYLE'] === 'true' }
+      : {}),
+  }),
+  driverType: 's3',
+  bucket: process.env['AWS_S3_BUCKET'] ?? 'uploads',
+})
+<% } else if (storageDriver === 'gcs' && database !== 'mongodb') { -%>
+configureFiles(app, {
+  driver: new GCSDriver({
+    bucket: process.env['GCS_BUCKET']!,
+    ...(process.env['GCS_KEY_FILENAME'] ? { keyFilename: process.env['GCS_KEY_FILENAME'] } : {}),
+  }),
+  driverType: 'gcs',
+  bucket: process.env['GCS_BUCKET'] ?? 'uploads',
+})
+<% } else if (storageDriver !== 'none' && database === 'mongodb') { -%>
+// TODO: file storage with MongoDB is not yet supported out of the box.
+// The plugin-files service uses Knex internally. Add a custom MongoDBService-based
+// files service or switch to a SQL database to use @feathers-baas/plugin-files.
+<% } -%>
+
 const server = await app.listen(config.port)
 
 const elapsed = Date.now() - startTime

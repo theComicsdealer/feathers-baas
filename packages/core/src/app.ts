@@ -50,7 +50,13 @@ export async function createApp(options?: CreateAppOptions): Promise<Application
   app.use(errorHandler())
   app.use(serveStatic('.'))
   app.use(parseAuthentication())
-  app.use(bodyParser())
+  // Skip body parsing for multipart — busboy streams those directly in the upload hook.
+  // Raise the JSON/urlencoded limit to 10 MB for large payloads.
+  app.use(bodyParser({
+    jsonLimit: '10mb',
+    formLimit: '10mb',
+    multipart: false,
+  }))
 
   // 3. Health checks + OpenAPI (before auth — no token required)
   configureHealth(app)
