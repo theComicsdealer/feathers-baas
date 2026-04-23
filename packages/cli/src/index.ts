@@ -9,6 +9,13 @@ import { DescribeCommand } from './commands/describe.js'
 import { SeedCommand } from './commands/seed.js'
 import { MigrateCommand } from './commands/migrate.js'
 import { RollbackCommand } from './commands/rollback.js'
+import {
+  AuthListRolesCommand,
+  AuthCreateRoleCommand,
+  AuthAddPermissionsCommand,
+  AuthRemovePermissionsCommand,
+  AuthCreateAdminCommand,
+} from './commands/auth.js'
 
 const pkg = createRequire(import.meta.url)('../package.json') as { version: string }
 
@@ -26,6 +33,11 @@ cli.register(DescribeCommand)
 cli.register(SeedCommand)
 cli.register(MigrateCommand)
 cli.register(RollbackCommand)
+cli.register(AuthListRolesCommand)
+cli.register(AuthCreateRoleCommand)
+cli.register(AuthAddPermissionsCommand)
+cli.register(AuthRemovePermissionsCommand)
+cli.register(AuthCreateAdminCommand)
 cli.register(Builtins.HelpCommand)
 cli.register(Builtins.VersionCommand)
 

@@ -8,6 +8,10 @@ export interface ServiceSchemas {
   patch?: TObject
   query?: TObject
   methods: string[]
+  // Per-path operation overrides merged after the auto-generated operations.
+  // Key is the full path (e.g. '/files'); value is a map of HTTP method → operation object.
+  // Use this when a standard CRUD operation needs a non-JSON request body (e.g. multipart upload).
+  customPaths?: Record<string, Record<string, unknown>>
 }
 
 const schemaRegistry = new Map<string, ServiceSchemas>()
@@ -166,14 +170,23 @@ export function generateOpenApiSpec(app: Application): Record<string, unknown> {
     if (serviceSchemas.query) schemas[`${name}Query`] = stripTypebox(serviceSchemas.query)
 
     Object.assign(paths, buildPaths(serviceSchemas, serviceName, refPrefix))
+
+    // Merge any custom path overrides (e.g. multipart upload replacing the auto-generated POST)
+    if (serviceSchemas.customPaths) {
+      for (const [path, ops] of Object.entries(serviceSchemas.customPaths)) {
+        paths[path] = { ...(paths[path] as Record<string, unknown> ?? {}), ...ops }
+      }
+    }
   }
 
-  // Authentication endpoint
+  // ─── Authentication ───────────────────────────────────────────────────────
+
   paths['/authentication'] = {
     post: {
       tags: ['authentication'],
-      summary: 'Authenticate',
+      summary: 'Login',
       operationId: 'authenticate',
+      security: [],
       requestBody: {
         required: true,
         content: {
@@ -199,7 +212,8 @@ export function generateOpenApiSpec(app: Application): Record<string, unknown> {
               schema: {
                 type: 'object',
                 properties: {
-                  accessToken: { type: 'string' },
+                  accessToken: { type: 'string', description: 'Short-lived JWT access token' },
+                  refreshToken: { type: 'string', description: 'Long-lived refresh token (also set as HTTP-only cookie)' },
                   authentication: { type: 'object' },
                   user: { $ref: `${refPrefix}Users` },
                 },
@@ -208,6 +222,117 @@ export function generateOpenApiSpec(app: Application): Record<string, unknown> {
           },
         },
         '401': { description: 'Not authenticated' },
+      },
+    },
+    delete: {
+      tags: ['authentication'],
+      summary: 'Logout',
+      operationId: 'logout',
+      responses: {
+        '200': { description: 'Logged out — refresh cookie cleared' },
+        '401': { description: 'Not authenticated' },
+      },
+    },
+  }
+
+  paths['/authentication/refresh'] = {
+    post: {
+      tags: ['authentication'],
+      summary: 'Refresh access token',
+      operationId: 'refreshToken',
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['refreshToken'],
+              properties: {
+                refreshToken: { type: 'string', description: 'Long-lived refresh token from login response' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'New access token issued',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  accessToken: { type: 'string' },
+                  user: { $ref: `${refPrefix}Users` },
+                },
+              },
+            },
+          },
+        },
+        '401': { description: 'Invalid or expired refresh token' },
+      },
+    },
+  }
+
+  // ─── Auth management (email verify, password reset) ───────────────────────
+
+  paths['/authManagement'] = {
+    post: {
+      tags: ['authManagement'],
+      summary: 'Auth management actions',
+      operationId: 'authManagement',
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['action', 'value'],
+              discriminator: { propertyName: 'action' },
+              properties: {
+                action: {
+                  type: 'string',
+                  enum: [
+                    'verifySignupLong',
+                    'verifySignupShort',
+                    'resendVerifySignup',
+                    'sendResetPwd',
+                    'resetPwdLong',
+                    'resetPwdShort',
+                    'passwordChange',
+                    'identityChange',
+                  ],
+                  description: [
+                    'verifySignupLong   — verify email with long token from link',
+                    'verifySignupShort  — verify email with short code',
+                    'resendVerifySignup — re-send verification email',
+                    'sendResetPwd       — send password reset email',
+                    'resetPwdLong       — reset password with long token',
+                    'resetPwdShort      — reset password with short code',
+                    'passwordChange     — change password (requires current password)',
+                    'identityChange     — change email address (requires password)',
+                  ].join('\n'),
+                },
+                value: {
+                  type: 'object',
+                  description: 'Payload varies by action',
+                  examples: {
+                    verifySignupLong:   { value: { value: { token: '<verifyToken>' } } },
+                    sendResetPwd:       { value: { value: { email: 'user@example.com' } } },
+                    resetPwdLong:       { value: { value: { token: '<resetToken>', password: 'newPassword123' } } },
+                    passwordChange:     { value: { value: { user: { email: 'user@example.com' }, oldPassword: 'old', password: 'new' } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '201': { description: 'Action completed successfully' },
+        '400': { description: 'Bad request — invalid token, expired token, or validation error' },
       },
     },
   }
@@ -251,6 +376,11 @@ const SCALAR_HTML = `<!DOCTYPE html>
 </html>`
 
 export function configureOpenApi(app: Application): void {
+  // Expose registerServiceSchemas on the app so external plugins (e.g. plugin-files)
+  // can register their schemas without importing @feathers-baas/core directly.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(app as any).set('registerServiceSchemas', registerServiceSchemas)
+
   const koaApp = app as unknown as {
     use(mw: (ctx: { path: string; status: number; body: unknown; type: string }, next: () => Promise<void>) => Promise<void>): void
   }

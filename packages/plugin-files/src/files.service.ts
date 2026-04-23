@@ -2,6 +2,7 @@
 import type { Knex } from 'knex'
 import { FilesClass } from './files.class.js'
 import { filesHooks } from './files.hooks.js'
+import { fileRecordSchema, fileDataSchema, filePatchSchema, fileQuerySchema } from './files.schema.js'
 import type { FilesConfigOptions } from './types.js'
 
 /**
@@ -39,4 +40,59 @@ export function configureFiles(app: any, opts: FilesConfigOptions): void {
   )
 
   app.service('files').hooks(filesHooks(opts))
+
+  // Register schemas with the OpenAPI registry if feathers-baas/core has set it up.
+  // We read from the app rather than importing core directly to avoid a hard dependency.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const registerSchemas = app.get('registerServiceSchemas') as ((name: string, schemas: any) => void) | undefined
+  if (typeof registerSchemas === 'function') {
+    registerSchemas('files', {
+      main: fileRecordSchema,
+      data: fileDataSchema,
+      patch: filePatchSchema,
+      query: fileQuerySchema,
+      methods: ['find', 'get', 'create', 'patch', 'remove'],
+      // Override the auto-generated POST /files with a multipart/form-data operation
+      customPaths: {
+        '/files': {
+          post: {
+            tags: ['files'],
+            summary: 'Upload a file',
+            operationId: 'uploadFile',
+            requestBody: {
+              required: true,
+              content: {
+                'multipart/form-data': {
+                  schema: {
+                    type: 'object',
+                    required: ['file'],
+                    properties: {
+                      file: {
+                        type: 'string',
+                        format: 'binary',
+                        description: 'The file to upload',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            responses: {
+              '201': {
+                description: 'File uploaded and metadata stored',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/Files' },
+                  },
+                },
+              },
+              '400': { description: 'No file attached or unsupported MIME type' },
+              '401': { description: 'Not authenticated' },
+              '413': { description: 'File exceeds maximum size' },
+            },
+          },
+        },
+      },
+    })
+  }
 }

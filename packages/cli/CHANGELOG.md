@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.6.0
+
+### Minor Changes
+
+- Add `auth` command group to the CLI: `auth list-roles [--json]`, `auth create-role`, `auth add-permissions`, `auth remove-permissions`, `auth create-admin`. All commands boot the project's app to interact with the live database — they work the same way as `seed` and `migrate`. Interactive by default; optional flags for scripting.
+
 ## 0.5.1
 
 ### Patch Changes

@@ -4,6 +4,7 @@ A CLI tool that scaffolds and runs a **production-grade Feathers.js v5 backend**
 
 ```bash
 npx feathers-baas init my-api
+npx feathers-baas init my-api --database postgresql --storage s3 --email resend --install
 ```
 
 ---
@@ -370,8 +371,34 @@ Creates 5 files and patches 2 existing files:
 | `boolean` | `Type.Boolean()` | `boolean` |
 | `date` | `Type.String({ format: 'date-time' })` | `timestamp` |
 | `json` | `Type.Object({})` | `jsonb` |
+| `ref:<service>` | `Type.String({ format: 'uuid' })` | `uuid` FK with `REFERENCES <service>(id)` |
 
 Append `:optional` to any field to make it nullable in the schema and migration.
+
+#### Foreign keys (`ref` type)
+
+Use `ref:<service>` to declare a field as a foreign key that references another service's `id` column:
+
+```bash
+npx feathers-baas generate service \
+  --name posts \
+  --fields "title:string,authorId:ref:users"
+```
+
+The migration generates a UUID column with an `REFERENCES users(id) ON DELETE RESTRICT` constraint and a covering index.
+
+#### Populate related records (`--populate`)
+
+Add `--populate` to generate a `populateRefs` after-hook that replaces FK fields with the related record on `get` and `find` responses:
+
+```bash
+npx feathers-baas generate service \
+  --name posts \
+  --fields "title:string,authorId:ref:users" \
+  --populate
+```
+
+`authorId` → `author: { id, email, … }` on every response. The hook uses a single batched `_find` with `$in` — no N+1 queries.
 
 #### Interactive mode
 
@@ -504,10 +531,47 @@ The `docker-compose.yml` includes health checks on Postgres and Redis — the ap
 
 | Command | Description |
 |---|---|
+| `init [name]` | Scaffold a new project (interactive or with flags) |
 | `generate service` | Generate a service (schema, class, hooks, migration) |
 | `generate hook` | Generate a typed hook function |
+| `migrate` | Run pending Knex migrations (SQL only) |
+| `rollback` | Roll back the last migration batch |
+| `seed` | Seed default roles and admin user |
 | `doctor` | Check project health (env vars, DB, versions) |
 | `describe` | Introspect services, methods, hooks (JSON for agents) |
+| `auth list-roles` | List all roles and their permissions |
+| `auth create-role` | Create a new role interactively |
+| `auth add-permissions` | Add a permission to an existing role |
+| `auth remove-permissions` | Remove permissions from a role |
+| `auth create-admin` | Create a new admin user |
+
+### `feathers-baas auth`
+
+Manage roles and admin users against a live database. All `auth` commands boot the project app (same as `seed` / `migrate`) so they respect `.env` and go through service hooks.
+
+```bash
+# List all roles (table or JSON)
+npx feathers-baas auth list-roles
+npx feathers-baas auth list-roles --json
+
+# Create a role (interactive prompts for name + permissions)
+npx feathers-baas auth create-role
+npx feathers-baas auth create-role --name editor
+
+# Add a permission to a role
+npx feathers-baas auth add-permissions
+npx feathers-baas auth add-permissions --role editor --service posts --methods find,get,create
+
+# Remove permissions from a role (checkbox picker)
+npx feathers-baas auth remove-permissions
+npx feathers-baas auth remove-permissions --role editor
+
+# Create an admin user
+npx feathers-baas auth create-admin
+npx feathers-baas auth create-admin --email admin@example.com --password secret123
+```
+
+All commands are interactive by default (prompts for missing values) and support flags for scripting/CI. `create-admin` hashes the password via the users service hooks and marks the account as verified.
 
 ### `feathers-baas doctor`
 
@@ -931,21 +995,25 @@ The app bootstraps in a strict order — each step depends on the previous:
 ```
  1. resolveConfig()              — TypeBox schema validation, fail-fast on bad env
  2. cors + errorHandler()        — outermost Koa middleware (wraps everything below)
- 3. bodyParser                   — parse JSON bodies
+ 3. bodyParser                   — parse JSON/urlencoded bodies; multipart disabled (busboy handles it)
  4. configureHealth()            — /health + /health/ready (before auth)
  5. configureOpenApi()           — /openapi.json + /docs (before auth)
- 6. rest()                       — Koa HTTP transport
- 7. configureKnex()              — database connection (SELECT 1 health check)
- 8. configureAuth()              — JWT + local strategies (argon2id)
- 9. configureServices()          — users, roles
-10. configureAuthManagement()    — email verification, password reset (depends on users service)
-11. configureChannels()          — real-time channel setup
-12. configureNotifications()     — email drivers + optional BullMQ queue
-13. installPlugins()             — auto-discovered from package.json
-14. logError around hook         — global error logging
+ 6. req injection middleware     — ctx.req → ctx.feathers so hooks receive params.req for multipart
+ 7. rest()                       — Koa HTTP transport (registers servicesMiddleware)
+ 8. configureKnex()              — database connection (SELECT 1 health check)
+ 9. configureAuth()              — JWT + local strategies (argon2id)
+10. configureRefresh()           — POST /authentication/refresh endpoint
+11. configureServices()          — users, roles
+12. configureAuthManagement()    — email verification, password reset (depends on users service)
+13. configureChannels()          — real-time channel setup
+14. configureNotifications()     — email drivers + optional BullMQ queue
+15. installPlugins()             — auto-discovered from package.json
+16. logError around hook         — global error logging
 ```
 
 `errorHandler` must be registered before `rest()` so it wraps the REST transport in Koa's onion model — this is what translates Feathers errors (e.g. `NotAuthenticated`) into correct HTTP status codes (401, 403, etc.) instead of 500.
+
+The req injection middleware (step 6) must be registered before `rest()` (step 7) because `@feathersjs/koa`'s `servicesMiddleware` reads `ctx.feathers` once to build `params` — anything added after that registration is invisible to hooks. This is required for multipart file uploads (`handleUpload` reads `context.params.req` to stream via busboy).
 
 ### Service anatomy
 

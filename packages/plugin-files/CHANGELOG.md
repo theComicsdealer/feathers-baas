@@ -1,5 +1,15 @@
 # @feathers-baas/plugin-files
 
+## 0.2.2
+
+### Patch Changes
+
+- Add `files` service and `authManagement` service to the OpenAPI docs.
+  - `configureOpenApi` now stores `registerServiceSchemas` on the app so external plugins can register their schemas without importing `@feathers-baas/core` directly.
+  - `ServiceSchemas` gains an optional `customPaths` field for per-path operation overrides — used by the files service to replace the auto-generated JSON POST with a `multipart/form-data` upload operation.
+  - `configureFiles` now calls `registerServiceSchemas` (via the app) to include the files service in `/openapi.json` and `/docs`.
+  - `generateOpenApiSpec` now includes hand-written entries for `POST /authManagement` (all eight actions documented with examples), `POST /authentication/refresh`, and `DELETE /authentication` (logout).
+
 ## 0.2.1
 
 ### Patch Changes
