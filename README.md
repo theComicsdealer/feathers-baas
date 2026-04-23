@@ -47,8 +47,8 @@ feathers-baas/
 │   ├── plugin-files/            # @feathers-baas/plugin-files — file storage (local/S3/GCS)
 │   ├── plugin-notifications/    # @feathers-baas/plugin-notifications — BullMQ email queue
 │   └── cli/                     # feathers-baas — the npx-able CLI (generate service, generate hook)
-├── PLAN.md              # Full implementation plan
 ├── .claude/
+│   ├── PLAN.md          # Full implementation plan
 │   ├── PRD.md           # Product requirements
 │   └── DESIGN_DECISIONS.md
 └── pnpm-workspace.yaml
@@ -270,6 +270,137 @@ Access tokens (`typ: access`) are rejected at `/authentication/refresh`, and ref
 | `JWT_SECRET` | *(required)* | HMAC signing secret — min 32 characters |
 | `JWT_EXPIRY` | `15m` | Access token lifetime |
 | `JWT_REFRESH_EXPIRY` | `7d` | Refresh token lifetime (cookie + response body) |
+
+---
+
+## Feathers.js Client
+
+feathers-baas works with the official `@feathersjs/client` for browser and Node.js frontends. The authentication client handles token storage, re-authentication, and the access/refresh token cycle transparently.
+
+### Installation
+
+```bash
+npm install @feathersjs/client @feathersjs/rest-client @feathersjs/authentication-client
+# or with socket.io real-time:
+npm install @feathersjs/client @feathersjs/socketio-client @feathersjs/authentication-client socket.io-client
+```
+
+### REST client setup
+
+```ts
+import { feathers } from '@feathersjs/client'
+import rest from '@feathersjs/rest-client'
+import authentication from '@feathersjs/authentication-client'
+
+const app = feathers()
+
+app.configure(rest('http://localhost:3030').fetch(window.fetch.bind(window)))
+
+app.configure(
+  authentication({
+    storage: window.localStorage,   // persist token across page reloads
+    storageKey: 'feathers-jwt',
+  })
+)
+```
+
+### Real-time (Socket.io) client setup
+
+```ts
+import { feathers } from '@feathersjs/client'
+import socketio from '@feathersjs/socketio-client'
+import authentication from '@feathersjs/authentication-client'
+import io from 'socket.io-client'
+
+const socket = io('http://localhost:3030', { transports: ['websocket'] })
+
+const app = feathers()
+
+app.configure(socketio(socket))
+
+app.configure(
+  authentication({
+    storage: window.localStorage,
+    storageKey: 'feathers-jwt',
+  })
+)
+```
+
+### Login and logout
+
+```ts
+// Login — returns accessToken, refreshToken, and user
+const { accessToken, user } = await app.authenticate({
+  strategy: 'local',
+  email: 'user@example.com',
+  password: 'secret',
+})
+
+// Re-authenticate on page load (uses stored token)
+try {
+  await app.reAuthenticate()
+} catch {
+  // No valid token — redirect to login
+}
+
+// Logout — clears stored token and the server-side refresh cookie
+await app.logout()
+```
+
+### Making service calls
+
+```ts
+// All service calls automatically include the Authorization header
+const users = await app.service('users').find()
+const post  = await app.service('posts').get('some-uuid')
+const newPost = await app.service('posts').create({ title: 'Hello', body: '...' })
+await app.service('posts').patch('some-uuid', { title: 'Updated' })
+await app.service('posts').remove('some-uuid')
+```
+
+### Token refresh — how it works with the Feathers client
+
+The access token expires after `JWT_EXPIRY` (default 15 minutes). The Feathers authentication client handles renewal **transparently** — no application code needed:
+
+1. The client sends a request with the expired access token
+2. The server's `BaasJWTStrategy` catches the `TokenExpiredError`, reads the `feathers-refresh` HTTP-only cookie, verifies it, and returns a fresh access token
+3. The client stores the new token and retries the original request
+
+This means `app.reAuthenticate()` on page load and any service call during a session always succeed as long as the refresh token is valid (default 7 days). **No manual refresh logic is required in your frontend.**
+
+> The refresh cookie is `HttpOnly` and `SameSite: lax` — it is never accessible to JavaScript. If your frontend is on a different domain from the API, set `sameSite: 'none'` in `auth/index.ts` (requires HTTPS).
+
+### Real-time events
+
+With the Socket.io transport, services emit `created`, `patched`, `removed` events in real time:
+
+```ts
+app.service('posts').on('created', (post) => {
+  console.log('New post:', post)
+})
+
+app.service('posts').on('patched', (post) => {
+  console.log('Post updated:', post)
+})
+
+app.service('posts').on('removed', (post) => {
+  console.log('Post deleted:', post)
+})
+```
+
+Events are only sent to authenticated connections that have permission to `find` the service (controlled by Feathers channels in `channels.ts`).
+
+### TypeScript types
+
+If your frontend is in the same monorepo (or you publish a types package), you can share the service types:
+
+```ts
+import type { User } from '@your-project/types'
+
+const user = await app.service('users').get('some-id') as User
+```
+
+Or generate a typed client using `@feathersjs/cli` from the OpenAPI spec at `GET /openapi.json`.
 
 ---
 
@@ -1123,9 +1254,30 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 
 ---
 
+## Further reading
+
+### Feathers.js documentation
+
+| Resource | Description |
+|---|---|
+| [Guides](https://feathersjs.com/guides/) | Step-by-step tutorials — services, hooks, real-time, and more |
+| [API reference](https://feathersjs.com/api/) | Complete API docs for services, hooks, transports, and adapters |
+| [Authentication client](https://feathersjs.com/api/authentication/client) | `@feathersjs/authentication-client` — token storage, `reAuthenticate()`, event hooks |
+| [Community & help](https://feathersjs.com/help/) | Discord, GitHub Discussions, Stack Overflow |
+
+### This project
+
+| Resource | Description |
+|---|---|
+| [PLAN.md](.claude/PLAN.md) | Full implementation roadmap and milestone history |
+| [.claude/DESIGN_DECISIONS.md](.claude/DESIGN_DECISIONS.md) | Rationale behind every major architectural choice |
+| [packages/cli/README.md](packages/cli/README.md) | CLI command reference |
+
+---
+
 ## Contributing
 
-See [PLAN.md](PLAN.md) for the full implementation roadmap and architectural decisions.
+See [PLAN.md](.claude/PLAN.md) for the full implementation roadmap and architectural decisions.
 See [.claude/DESIGN_DECISIONS.md](.claude/DESIGN_DECISIONS.md) for the rationale behind every major design choice.
 
 ---
