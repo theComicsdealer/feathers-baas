@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.6.1
+
+### Patch Changes
+
+- Update CLI README and AGENTS.md template: add OpenAPI & Swagger UI section covering the `/openapi.json` and `/docs` endpoints, what is included in the spec, how to register a hand-written service, and (in AGENTS.md) how to query the live spec as an agent using curl + jq.
+
 ## 0.6.0
 
 ### Minor Changes
