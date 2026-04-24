@@ -1,5 +1,11 @@
 # feathers-baas
 
+## 0.7.1
+
+### Patch Changes
+
+- Fix `--install` flag defaulting to npm instead of pnpm. `detectPackageManager` now defaults to `pnpm` when the user agent is absent (e.g. when invoked via `npx`), only falling back to npm when npm is explicitly detected.
+
 ## 0.7.0
 
 ### Minor Changes

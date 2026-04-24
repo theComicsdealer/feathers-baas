@@ -105,6 +105,6 @@ export class InitCommand extends Command {
 function detectPackageManager(): string {
   const ua = process.env['npm_config_user_agent'] ?? ''
   if (ua.startsWith('yarn')) return 'yarn'
-  if (ua.startsWith('pnpm')) return 'pnpm'
-  return 'npm'
+  if (ua.startsWith('npm')) return 'npm'
+  return 'pnpm'
 }
