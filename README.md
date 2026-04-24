@@ -642,7 +642,8 @@ Docker templates are included for production deployment:
 | File | Description |
 |---|---|
 | `Dockerfile` | Multi-stage build (Node 20 Alpine, non-root user) |
-| `docker-compose.yml` | App + Postgres + Redis |
+| `docker-compose.yml` | App + Postgres + Redis with health checks |
+| `docker-entrypoint.sh` | Startup script — runs migrations, optional seed, then server |
 | `.dockerignore` | Excludes dev files, tests, env files |
 
 ```bash
@@ -654,7 +655,25 @@ docker build -t my-api .
 docker run -p 3030:3030 --env-file .env my-api
 ```
 
-The `docker-compose.yml` includes health checks on Postgres and Redis — the app container waits for both to be ready before starting.
+### Automatic migrations and seeding
+
+The container runs `docker-entrypoint.sh` on startup, which:
+
+1. **Runs migrations** — `node dist/migrate.js` applies any pending Knex migrations. Idempotent and a no-op for MongoDB.
+2. **Seeds the database** — `node dist/seed.js` creates the default roles and admin user if `SEED_ON_START=true` (the default in `docker-compose.yml`). Set `SEED_ON_START=false` to skip on subsequent restarts.
+3. **Starts the server** — `exec node dist/index.js`.
+
+Migrations and seed scripts are compiled TypeScript (`src/migrate.ts`, `src/seed.ts`) — no CLI or TypeScript runtime is required in the production image. Migration files (`migrations/*.ts`) are compiled to `dist/migrations/` by tsup as part of `pnpm build`.
+
+### Required environment variables for Docker
+
+```env
+JWT_SECRET=a-random-secret-that-is-at-least-32-chars
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=supersecret
+```
+
+Set these in your `.env` file — `docker-compose.yml` reads them via `${ADMIN_EMAIL}` and passes them to the container. The `docker-compose.yml` also includes health checks on Postgres and Redis so the app container waits for both to be ready before starting.
 
 ---
 

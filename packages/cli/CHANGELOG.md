@@ -1,5 +1,16 @@
 # feathers-baas
 
+## 0.7.0
+
+### Minor Changes
+
+- Fix Docker deployment: migrations and seed now run automatically on container start.
+  - Add `src/migrate.ts` and `src/seed.ts` to generated projects — compiled to `dist/` by tsup, no CLI or TypeScript runtime needed in production.
+  - Update `tsup.config.ts` template to dynamically include `migrations/*.ts` as build entries, compiling them to `dist/migrations/*.js` alongside the app.
+  - Add `docker-entrypoint.sh` — runs `node dist/migrate.js`, then `node dist/seed.js` if `SEED_ON_START=true`, then `exec node dist/index.js`.
+  - Update `Dockerfile` to use the entrypoint script and copy it into the runner image.
+  - Update `docker-compose.yml` to pass `SEED_ON_START` (default `true`), `ADMIN_EMAIL`, and `ADMIN_PASSWORD` through to the container.
+
 ## 0.6.1
 
 ### Patch Changes

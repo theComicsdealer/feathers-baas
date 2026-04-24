@@ -8,6 +8,11 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/feathers_baas
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env}
+      # Set to true to run `seed` on every container start (idempotent).
+      # Seeds default roles and the admin user from ADMIN_EMAIL / ADMIN_PASSWORD.
+      - SEED_ON_START=${SEED_ON_START:-true}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
     depends_on:
       db:
         condition: service_healthy

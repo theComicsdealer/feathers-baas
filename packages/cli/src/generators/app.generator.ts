@@ -40,6 +40,8 @@ const STATIC_FILES = [
   'tsup.config.ts',
   'src/declarations.ts',
   'src/services/index.ts',
+  'src/migrate.ts',
+  'src/seed.ts',
 ]
 
 const EJS_FILES = [
@@ -87,7 +89,7 @@ export function generateApp(options: AppOptions): void {
   output.fileCreated('.gitignore')
 
   // Copy Docker files
-  const dockerFiles = ['Dockerfile', 'docker-compose.yml', '.dockerignore']
+  const dockerFiles = ['Dockerfile', 'docker-compose.yml', '.dockerignore', 'docker-entrypoint.sh']
   for (const file of dockerFiles) {
     const src = getTemplatePath(`docker/${file}`)
     if (existsSync(src)) {
