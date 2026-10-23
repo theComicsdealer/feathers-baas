@@ -36,6 +36,35 @@ describe('resolveConfig', () => {
     expect(config.cors.origins).toEqual(['http://localhost:3000', 'https://app.example.com'])
   })
 
+  it('enables CORS credentials by default, disabled with CORS_CREDENTIALS=false', () => {
+    expect(resolveConfig().cors.credentials).toBe(true)
+    process.env['CORS_CREDENTIALS'] = 'false'
+    expect(resolveConfig().cors.credentials).toBe(false)
+  })
+
+  it('defaults the refresh cookie SameSite mode to auto and rejects unknown values', () => {
+    expect(resolveConfig().refreshCookie.sameSite).toBe('auto')
+    process.env['REFRESH_COOKIE_SAMESITE'] = 'none'
+    expect(resolveConfig().refreshCookie.sameSite).toBe('none')
+    process.env['REFRESH_COOKIE_SAMESITE'] = 'sometimes'
+    expect(() => resolveConfig()).toThrow('Invalid configuration')
+  })
+
+  it('reads APP_URL and email link paths even without an email driver', () => {
+    for (const key of ['SMTP_URL', 'RESEND_API_KEY', 'SENDGRID_API_KEY', 'BREVO_API_KEY']) delete process.env[key]
+    process.env['APP_URL'] = 'https://app.example.com'
+    process.env['EMAIL_VERIFY_PATH'] = '/auth/confirm'
+    const { notifications } = resolveConfig()
+    expect(notifications?.appUrl).toBe('https://app.example.com')
+    expect(notifications?.paths.verify).toBe('/auth/confirm')
+    expect(notifications?.paths.resetPassword).toBe('/reset-password')
+  })
+
+  it('leaves appUrl unset instead of defaulting to the API origin', () => {
+    delete process.env['APP_URL']
+    expect(resolveConfig().notifications?.appUrl).toBeUndefined()
+  })
+
   it('parses PORT as a number', () => {
     process.env['PORT'] = '8080'
     const config = resolveConfig()

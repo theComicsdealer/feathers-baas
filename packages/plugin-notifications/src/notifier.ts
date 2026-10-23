@@ -18,15 +18,73 @@ const AUTH_MANAGEMENT_EVENT_MAP: Record<string, AuthNotificationEvent> = {
   identityChange: 'auth.identity-change',
 }
 
-/**
- * Build a default Notification payload for each auth event type.
- * Templates use EJS — `<%= variable %>` for output, `<% code %>` for logic.
- */
-function buildAuthNotification(
+/** Defaults match feathers-authentication-management's own `delay` / `resetDelay`. */
+const DEFAULT_VERIFY_DELAY_MS = 1000 * 60 * 60 * 24 * 5
+const DEFAULT_RESET_DELAY_MS = 1000 * 60 * 60 * 2
+
+export interface AuthNotificationOptions {
+  /**
+   * Public base URL of the **web app** that redeems the tokens (not this API),
+   * e.g. https://app.example.com
+   */
+  appUrl: string
+  /** Frontend routes the email links point to. */
+  paths?: {
+    /** Default: `/verify` */
+    verify?: string
+    /** Default: `/reset-password` */
+    resetPassword?: string
+    /** Default: `/verify-set-password` */
+    verifySetPassword?: string
+  }
+  /** Verification token lifetime in ms — must match auth-management's `delay`. Default: 5 days. */
+  verifyDelay?: number
+  /** Reset token lifetime in ms — must match auth-management's `resetDelay`. Default: 2 hours. */
+  resetDelay?: number
+}
+
+export type AuthNotificationBuilder = (
   type: AuthNotificationEvent,
   user: Record<string, unknown>,
-  appUrl: string,
+  opts: AuthNotificationOptions,
+) => Notification | null
+
+/** Human-readable duration for email copy, e.g. 432000000 → "5 days". */
+export function formatDuration(ms: number): string {
+  const units: [string, number][] = [
+    ['day', 86_400_000],
+    ['hour', 3_600_000],
+    ['minute', 60_000],
+  ]
+  for (const [name, size] of units) {
+    if (ms >= size && ms % size === 0) {
+      const n = ms / size
+      return `${n} ${name}${n === 1 ? '' : 's'}`
+    }
+  }
+  const minutes = Math.max(1, Math.round(ms / 60_000))
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`
+}
+
+function buildLink(appUrl: string, path: string, token: string | undefined): string {
+  const base = appUrl.replace(/\/+$/, '')
+  const route = path.startsWith('/') ? path : `/${path}`
+  return `${base}${route}?token=${encodeURIComponent(token ?? '')}`
+}
+
+/**
+ * Build the default Notification payload for each auth event type.
+ * Exported so apps can wrap it via the notifier's `buildNotification` option.
+ * Templates use EJS — `<%= variable %>` for output, `<% code %>` for logic.
+ */
+export function buildAuthNotification(
+  type: AuthNotificationEvent,
+  user: Record<string, unknown>,
+  opts: AuthNotificationOptions,
 ): Notification | null {
+  const { appUrl, paths = {} } = opts
+  const verifyExpiry = formatDuration(opts.verifyDelay ?? DEFAULT_VERIFY_DELAY_MS)
+  const resetExpiry = formatDuration(opts.resetDelay ?? DEFAULT_RESET_DELAY_MS)
   const email = user['email'] as string
   if (!email) return null
 
@@ -34,7 +92,7 @@ function buildAuthNotification(
     case 'auth.verify-signup':
     case 'auth.resend-verify-signup': {
       const token = user['verifyToken'] as string | undefined
-      const verifyUrl = `${appUrl}/verify?token=${token ?? ''}`
+      const verifyUrl = buildLink(appUrl, paths.verify ?? '/verify', token)
       return {
         to: email,
         channel: 'email',
@@ -43,16 +101,16 @@ function buildAuthNotification(
           <h2>Welcome!</h2>
           <p>Click the link below to verify your email address:</p>
           <p><a href="<%= verifyUrl %>">Verify email</a></p>
-          <p>This link expires in 24 hours.</p>
+          <p>This link expires in <%= expiresIn %>.</p>
         `,
         textTemplate: `Verify your email: <%= verifyUrl %>`,
-        data: { verifyUrl, user },
+        data: { verifyUrl, expiresIn: verifyExpiry, user },
       }
     }
 
     case 'auth.send-reset-pwd': {
       const token = user['resetToken'] as string | undefined
-      const resetUrl = `${appUrl}/reset-password?token=${token ?? ''}`
+      const resetUrl = buildLink(appUrl, paths.resetPassword ?? '/reset-password', token)
       return {
         to: email,
         channel: 'email',
@@ -61,10 +119,10 @@ function buildAuthNotification(
           <h2>Password reset requested</h2>
           <p>Click the link below to reset your password:</p>
           <p><a href="<%= resetUrl %>">Reset password</a></p>
-          <p>This link expires in 2 hours. If you did not request this, ignore this email.</p>
+          <p>This link expires in <%= expiresIn %>. If you did not request this, ignore this email.</p>
         `,
         textTemplate: `Reset your password: <%= resetUrl %>`,
-        data: { resetUrl, user },
+        data: { resetUrl, expiresIn: resetExpiry, user },
       }
     }
 
@@ -103,7 +161,7 @@ function buildAuthNotification(
 
     case 'auth.verify-signup-set-password': {
       const token = user['verifyToken'] as string | undefined
-      const verifyUrl = `${appUrl}/verify-set-password?token=${token ?? ''}`
+      const verifyUrl = buildLink(appUrl, paths.verifySetPassword ?? '/verify-set-password', token)
       return {
         to: email,
         channel: 'email',
@@ -125,16 +183,16 @@ export type NotifierFn = (
   notifierOptions: Record<string, unknown>,
 ) => Promise<void>
 
-export interface BullMQNotifierOptions {
-  /** BullMQ Queue instance — from createNotificationQueue(). */
-  queue: Queue<NotificationJob>
+interface NotifierBaseOptions extends AuthNotificationOptions {
   /** Driver registry — used to determine which drivers handle each event. */
   registry: DriverRegistry
-  /**
-   * Public base URL of the app, e.g. https://api.example.com
-   * Used to construct verification / reset URLs in email templates.
-   */
-  appUrl: string
+  /** Replace the default email composition. Wrap `buildAuthNotification` to tweak it. */
+  buildNotification?: AuthNotificationBuilder
+}
+
+export interface BullMQNotifierOptions extends NotifierBaseOptions {
+  /** BullMQ Queue instance — from createNotificationQueue(). */
+  queue: Queue<NotificationJob>
 }
 
 /**
@@ -151,12 +209,7 @@ export interface BullMQNotifierOptions {
  * app.set('notifier', createBullMQNotifier({ queue, registry, appUrl }))
  * ```
  */
-export interface DirectNotifierOptions {
-  /** Driver registry — used to determine which drivers handle each event. */
-  registry: DriverRegistry
-  /** Public base URL of the app. */
-  appUrl: string
-}
+export type DirectNotifierOptions = NotifierBaseOptions
 
 /**
  * Create a notifier that sends notifications directly via the driver (no queue).
@@ -168,7 +221,7 @@ export function createDirectNotifier(opts: DirectNotifierOptions): NotifierFn {
     const eventKey = AUTH_MANAGEMENT_EVENT_MAP[type]
     if (!eventKey) return
 
-    const notification = buildAuthNotification(eventKey, user, opts.appUrl)
+    const notification = (opts.buildNotification ?? buildAuthNotification)(eventKey, user, opts)
     if (!notification) return
 
     const driverNames = opts.registry.getDriversForEvent(eventKey)
@@ -189,7 +242,7 @@ export function createBullMQNotifier(opts: BullMQNotifierOptions): NotifierFn {
     const eventKey = AUTH_MANAGEMENT_EVENT_MAP[type]
     if (!eventKey) return // Unknown event type — no-op
 
-    const notification = buildAuthNotification(eventKey, user, opts.appUrl)
+    const notification = (opts.buildNotification ?? buildAuthNotification)(eventKey, user, opts)
     if (!notification) return // Missing required user fields — no-op
 
     const driverNames = opts.registry.getDriversForEvent(eventKey)

@@ -3,6 +3,10 @@ import authManagement from 'feathers-authentication-management'
 import type { Application } from '../declarations.js'
 import { createNotifier } from './notifier.js'
 
+/** Token lifetimes — also passed to the notifier so email copy states the real expiry. */
+export const VERIFY_DELAY_MS = 1000 * 60 * 60 * 24 * 5 // 5 days
+export const RESET_DELAY_MS = 1000 * 60 * 60 * 2 // 2 hours
+
 /**
  * Configure feathers-authentication-management on the app.
  *
@@ -23,6 +27,8 @@ export function configureAuthManagement(app: Application): void {
   ;(app as any).configure(authManagement({
     service: 'users',
     notifier: createNotifier(app),
+    delay: VERIFY_DELAY_MS,
+    resetDelay: RESET_DELAY_MS,
     // Skip verification check for password reset — allows resetting
     // even if the user hasn't verified their email yet
     skipIsVerifiedCheck: false,

@@ -4,25 +4,12 @@ import type { Params } from '@feathersjs/feathers'
 import type { Application } from '../declarations.js'
 import { ArgonLocalStrategy } from './strategies/local.strategy.js'
 import { BaasJWTStrategy } from './strategies/jwt.strategy.js'
-
-interface KoaCookieJar {
-  set(name: string, value: string | null, options?: Record<string, unknown>): void
-}
+import { setRefreshCookie, clearRefreshCookie } from './cookie.js'
 
 function parseExpiryMs(expiry: string): number {
   const units: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }
   const m = expiry.match(/^(\d+)([smhd])$/)
   return m ? parseInt(m[1]!) * (units[m[2]!] ?? 86_400_000) : 7 * 86_400_000
-}
-
-function refreshCookieOptions(maxAge: number) {
-  return {
-    httpOnly: true,
-    secure: process.env['NODE_ENV'] === 'production',
-    sameSite: 'lax',
-    path: '/authentication',
-    maxAge,
-  }
 }
 
 class BaasAuthenticationService extends AuthenticationService {
@@ -46,8 +33,7 @@ class BaasAuthenticationService extends AuthenticationService {
 
         // Set HTTP-only cookie for browser clients using @feathersjs/authentication-client
         // The BaasJWTStrategy reads this cookie to transparently refresh expired access tokens
-        const cookies = (params?.connection as { cookies?: KoaCookieJar } | undefined)?.cookies
-        cookies?.set('feathers-refresh', refreshToken, refreshCookieOptions(parseExpiryMs(config.jwtRefreshExpiry)))
+        setRefreshCookie(config, params, refreshToken, parseExpiryMs(config.jwtRefreshExpiry))
       }
     }
 
@@ -56,8 +42,7 @@ class BaasAuthenticationService extends AuthenticationService {
 
   override async remove(id: string | null, params?: Params) {
     const result = await super.remove(id, params)
-    const cookies = (params?.connection as { cookies?: KoaCookieJar } | undefined)?.cookies
-    cookies?.set('feathers-refresh', null, refreshCookieOptions(0))
+    clearRefreshCookie((this.app as Application).get('config'), params)
     return result
   }
 }

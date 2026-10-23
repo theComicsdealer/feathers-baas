@@ -3,7 +3,9 @@ import { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
 import type { NotificationJob } from '../types.js'
 
-export const NOTIFICATION_QUEUE_NAME = 'feathers-baas:notifications'
+// BullMQ rejects ':' in queue names — namespace with its `prefix` option instead.
+export const NOTIFICATION_QUEUE_NAME = 'feathers-baas-notifications'
+export const NOTIFICATION_QUEUE_PREFIX = 'feathers-baas'
 
 /**
  * Create a BullMQ Queue instance for notification jobs.
@@ -18,6 +20,7 @@ export const NOTIFICATION_QUEUE_NAME = 'feathers-baas:notifications'
 export function createNotificationQueue(redis: Redis): Queue<NotificationJob> {
   return new Queue<NotificationJob>(NOTIFICATION_QUEUE_NAME, {
     connection: redis,
+    prefix: NOTIFICATION_QUEUE_PREFIX,
     defaultJobOptions: {
       attempts: 5,
       backoff: {

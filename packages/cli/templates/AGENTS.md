@@ -81,11 +81,11 @@ Each service is four colocated files:
 | 2 | cors + errorHandler + bodyParser (multipart disabled — busboy handles it) |
 | 3 | `configureHealth()` — `/health`, `/health/ready` (no auth required) |
 | 4 | `configureOpenApi()` — `/openapi.json`, `/docs` (no auth required) |
-| 5 | req injection middleware — copies `ctx.req` → `ctx.feathers` so hooks see `params.req` |
+| 5 | params injection middleware — copies `ctx.req` / `ctx.cookies` → `ctx.feathers` so hooks see `params.req` / `params.cookies` |
 | 6 | `rest()` — Feathers REST transport (must come after step 5) |
 | 7 | `configureKnex/Mysql/Sqlite/Mongo()` — DB connection |
 | 8 | `configureAuth()` — JWT + local strategies |
-| 9 | `configureRefresh()` — `POST /authentication/refresh` |
+| 9 | `configureRefresh()` — `authentication/refresh` service (`POST /authentication/refresh`, 201) |
 | 10 | `configureServices()` — users, roles, and your custom services |
 | 11 | `configureAuthManagement()` — verify email, reset password (needs users service) |
 | 12 | `configureChannels()` — real-time |
@@ -142,7 +142,11 @@ Append `:optional` to any field to make it nullable. Use `ref:<service>` for for
 | `ADMIN_PASSWORD` | | Admin password (used by `seed`) |
 | `REDIS_URL` | | Enables BullMQ queue for notifications |
 | `CORS_ORIGINS` | | Comma-separated allowed origins |
-| `APP_URL` | | Public base URL used in email links |
+| `CORS_CREDENTIALS` | | Allow credentialed CORS requests (default: true) |
+| `REFRESH_COOKIE_SAMESITE` | | `auto` (default), `lax`, `strict` or `none` |
+| `TRUST_PROXY` | | Trust `X-Forwarded-*` — needed for Secure cookies behind a TLS proxy |
+| `APP_URL` | | Public URL of the **web app** used in email links |
+| `EMAIL_VERIFY_PATH` / `EMAIL_RESET_PASSWORD_PATH` | | Frontend routes for email links (default: `/verify`, `/reset-password`) |
 
 \* Exactly one database variable is required.
 

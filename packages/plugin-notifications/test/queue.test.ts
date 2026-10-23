@@ -28,7 +28,12 @@ vi.mock('bullmq', () => ({
 }))
 
 // ─── Imports after mocking ────────────────────────────────────────────────────
-import { createNotificationQueue, enqueueNotification, NOTIFICATION_QUEUE_NAME } from '../src/queue/producer.js'
+import {
+  createNotificationQueue,
+  enqueueNotification,
+  NOTIFICATION_QUEUE_NAME,
+  NOTIFICATION_QUEUE_PREFIX,
+} from '../src/queue/producer.js'
 import { createNotificationWorker } from '../src/queue/worker.js'
 import { DriverRegistry } from '../src/registry.js'
 import type { NotifierDriver } from '../src/types.js'
@@ -52,6 +57,7 @@ describe('createNotificationQueue', () => {
     expect(vi.mocked(Queue)).toHaveBeenCalledWith(
       NOTIFICATION_QUEUE_NAME,
       expect.objectContaining({
+        prefix: NOTIFICATION_QUEUE_PREFIX,
         defaultJobOptions: expect.objectContaining({
           attempts: 5,
           backoff: expect.objectContaining({ type: 'exponential' }),
@@ -97,7 +103,7 @@ describe('createNotificationWorker', () => {
     expect(vi.mocked(Worker)).toHaveBeenCalledWith(
       NOTIFICATION_QUEUE_NAME,
       expect.any(Function),
-      expect.objectContaining({ concurrency: 3 }),
+      expect.objectContaining({ concurrency: 3, prefix: NOTIFICATION_QUEUE_PREFIX }),
     )
   })
 

@@ -36,15 +36,20 @@ export async function createApp(options?: CreateAppOptions): Promise<Application
   // 1. Store typed config on app
   app.set('config', config)
 
+  // Behind a TLS-terminating proxy koa only sees HTTPS (and allows Secure cookies) when trusted
+  app.proxy = config.trustProxy
+
   // 2. Security & body middleware
-  // cors origin: accept array by checking request origin against allowlist
+  // cors origin: echo allowlisted origins only — returning '' makes @koa/cors send no CORS
+  // headers at all, so other origins are refused (never paired with Allow-Credentials)
   const allowedOrigins = new Set(config.cors.origins)
   app.use(
     cors({
       origin: (ctx) => {
         const reqOrigin = ctx.request.headers['origin'] ?? ''
-        return allowedOrigins.has(reqOrigin) ? reqOrigin : config.cors.origins[0] ?? ''
+        return allowedOrigins.has(reqOrigin) ? reqOrigin : ''
       },
+      credentials: config.cors.credentials,
     }),
   )
   app.use(errorHandler())
@@ -62,12 +67,13 @@ export async function createApp(options?: CreateAppOptions): Promise<Application
   configureHealth(app)
   configureOpenApi(app)
 
-  // 4. Expose raw IncomingMessage for multipart hooks (busboy).
+  // 4. Expose the raw IncomingMessage (busboy multipart hooks) and koa's cookie jar
+  // (refresh cookie — see auth/cookie.ts) as params.req / params.cookies.
   // Must be registered before configure(rest()) because @feathersjs/koa's
   // servicesMiddleware reads ctx.feathers once to build params; anything added
   // after that call is invisible to hooks.
   app.use(async (ctx: import('@feathersjs/koa').Koa.Context, next: () => Promise<void>) => {
-    ctx.feathers = { ...ctx.feathers, req: ctx.req } as typeof ctx.feathers
+    ctx.feathers = { ...ctx.feathers, req: ctx.req, cookies: ctx.cookies } as typeof ctx.feathers
     return next()
   })
 

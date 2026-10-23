@@ -25,7 +25,8 @@ configureFiles(app, {
   driver: new LocalDriver({
     directory: './uploads',
     jwtSecret: config.jwtSecret,
-    baseUrl: process.env['APP_URL'] ?? `http://localhost:${String(config.port)}`,
+    // Public URL of this API (signed file links) — APP_URL is the web app's URL
+    baseUrl: process.env['API_URL'] ?? `http://localhost:${String(config.port)}`,
   }),
   driverType: 'local',
   bucket: 'uploads',

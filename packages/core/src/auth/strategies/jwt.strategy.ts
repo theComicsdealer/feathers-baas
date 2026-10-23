@@ -1,11 +1,9 @@
 import { JWTStrategy } from '@feathersjs/authentication'
 import { NotAuthenticated } from '@feathersjs/errors'
 import type { Params } from '@feathersjs/feathers'
-
-interface KoaCookieJar {
-  get(name: string): string | undefined
-  set(name: string, value: string | null, options?: Record<string, unknown>): void
-}
+import type { Application } from '../../declarations.js'
+import { REFRESH_COOKIE_NAME, getCookieJar, clearRefreshCookie } from '../cookie.js'
+import { sanitizeUser } from '../sanitize.js'
 
 function decodeJwtHeader(token: string): Record<string, unknown> {
   try {
@@ -23,8 +21,7 @@ export class BaasJWTStrategy extends JWTStrategy {
       // Only attempt cookie-based refresh for expired tokens — all other errors propagate as-is
       if ((err as { data?: { name?: string } }).data?.name !== 'TokenExpiredError') throw err
 
-      const cookies = (params.connection as { cookies?: KoaCookieJar } | undefined)?.cookies
-      const refreshToken = cookies?.get('feathers-refresh')
+      const refreshToken = getCookieJar(params)?.get(REFRESH_COOKIE_NAME)
       if (!refreshToken) throw new NotAuthenticated('Access token expired')
 
       const authService = this.app!.service('authentication') as unknown as {
@@ -35,7 +32,7 @@ export class BaasJWTStrategy extends JWTStrategy {
       try {
         payload = await authService.verifyAccessToken(refreshToken)
       } catch {
-        cookies?.set('feathers-refresh', null, { maxAge: 0, path: '/authentication' })
+        clearRefreshCookie((this.app as Application).get('config'), params)
         throw new NotAuthenticated('Refresh token invalid or expired')
       }
 
@@ -46,7 +43,8 @@ export class BaasJWTStrategy extends JWTStrategy {
       const userId = payload.sub
       if (!userId) throw new NotAuthenticated('Invalid refresh token')
 
-      const user = await this.app!.service('users').get(userId)
+      // Internal call — removeVerification no-ops, so strip verification fields ourselves
+      const user = sanitizeUser((await this.app!.service('users').get(userId)) as Record<string, unknown>)
 
       // AuthenticationService.create() calls getPayload({ user }) then createAccessToken()
       // — so it replaces accessToken with a fresh one. We pass the expired token to satisfy the type.

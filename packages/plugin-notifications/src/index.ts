@@ -16,11 +16,22 @@ const plugin: FeathersBaasPlugin = {
 export default plugin
 
 export { DriverRegistry } from './registry.js'
-export { createBullMQNotifier, createDirectNotifier } from './notifier.js'
-export type { NotifierFn, BullMQNotifierOptions, DirectNotifierOptions } from './notifier.js'
+export { createBullMQNotifier, createDirectNotifier, buildAuthNotification, formatDuration } from './notifier.js'
+export type {
+  NotifierFn,
+  BullMQNotifierOptions,
+  DirectNotifierOptions,
+  AuthNotificationOptions,
+  AuthNotificationBuilder,
+} from './notifier.js'
 
 // Queue
-export { createNotificationQueue, enqueueNotification, NOTIFICATION_QUEUE_NAME } from './queue/producer.js'
+export {
+  createNotificationQueue,
+  enqueueNotification,
+  NOTIFICATION_QUEUE_NAME,
+  NOTIFICATION_QUEUE_PREFIX,
+} from './queue/producer.js'
 export { createNotificationWorker } from './queue/worker.js'
 export type { WorkerOptions } from './queue/worker.js'
 

@@ -3,7 +3,7 @@ import { Worker } from 'bullmq'
 import type { Redis } from 'ioredis'
 import type { DriverRegistry } from '../registry.js'
 import type { NotificationJob } from '../types.js'
-import { NOTIFICATION_QUEUE_NAME } from './producer.js'
+import { NOTIFICATION_QUEUE_NAME, NOTIFICATION_QUEUE_PREFIX } from './producer.js'
 
 export interface WorkerOptions {
   /** BullMQ concurrency — number of jobs processed in parallel. */
@@ -49,6 +49,8 @@ export function createNotificationWorker(
     },
     {
       connection: redis,
+      // Must match the producer, or jobs are enqueued where the worker isn't listening
+      prefix: NOTIFICATION_QUEUE_PREFIX,
       concurrency,
       // Don't create a new redis connection per job — reuse the pool
       autorun: true,

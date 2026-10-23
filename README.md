@@ -257,11 +257,11 @@ curl -s -X POST http://localhost:3030/authentication/refresh \
   -d '{"refreshToken":"<refreshToken>"}' | jq .accessToken
 ```
 
-Returns `{ accessToken, user }`.
+Returns `201 { accessToken, user }` (the same status as `POST /authentication`). A body without `refreshToken` is a `400`; an invalid, expired or wrong-type token is a `401` — only a `401` means the refresh token itself is bad.
 
 Access tokens (`typ: access`) are rejected at `/authentication/refresh`, and refresh tokens (`typ: refresh`) are rejected at `POST /authentication` — the two token types cannot be substituted for each other.
 
-> **Cross-origin deployments:** the refresh cookie is `SameSite: lax` by default. If your frontend is on a different domain from the API, set `sameSite: 'none'` (requires HTTPS) in `auth/index.ts`.
+> **Cross-origin deployments:** CORS sends `Access-Control-Allow-Credentials: true` for allowlisted origins (`CORS_CREDENTIALS=false` to disable), so browser clients can use `credentials: 'include'`. The cookie's `SameSite` attribute is chosen per login (`REFRESH_COOKIE_SAMESITE=auto`, the default): `None; Secure` when the browser flags the request as cross-site, `Lax` otherwise. Cross-site cookies require HTTPS — behind a TLS-terminating proxy set `TRUST_PROXY=true`.
 
 ### Token configuration
 
@@ -368,7 +368,7 @@ The access token expires after `JWT_EXPIRY` (default 15 minutes). The Feathers a
 
 This means `app.reAuthenticate()` on page load and any service call during a session always succeed as long as the refresh token is valid (default 7 days). **No manual refresh logic is required in your frontend.**
 
-> The refresh cookie is `HttpOnly` and `SameSite: lax` — it is never accessible to JavaScript. If your frontend is on a different domain from the API, set `sameSite: 'none'` in `auth/index.ts` (requires HTTPS).
+> The refresh cookie is `HttpOnly` — it is never accessible to JavaScript. It is `SameSite=Lax` for same-site frontends and `SameSite=None; Secure` when the frontend is on another domain (see `REFRESH_COOKIE_SAMESITE`; cross-site requires HTTPS).
 
 ### Real-time events
 
@@ -793,7 +793,8 @@ If no driver env vars are configured at all, auth events are logged to console.
 **1. Add driver env vars** to `packages/core/.env`:
 
 ```env
-APP_URL=http://localhost:3030
+# Public URL of the web app that serves /verify and /reset-password (not this API)
+APP_URL=http://localhost:3000
 
 # Pick one (or more) email drivers — all configured drivers receive every event:
 
@@ -1148,11 +1149,11 @@ The app bootstraps in a strict order — each step depends on the previous:
  3. bodyParser                   — parse JSON/urlencoded bodies; multipart disabled (busboy handles it)
  4. configureHealth()            — /health + /health/ready (before auth)
  5. configureOpenApi()           — /openapi.json + /docs (before auth)
- 6. req injection middleware     — ctx.req → ctx.feathers so hooks receive params.req for multipart
+ 6. params injection middleware  — ctx.req / ctx.cookies → params.req (multipart) and params.cookies (refresh cookie)
  7. rest()                       — Koa HTTP transport (registers servicesMiddleware)
  8. configureKnex()              — database connection (SELECT 1 health check)
  9. configureAuth()              — JWT + local strategies (argon2id)
-10. configureRefresh()           — POST /authentication/refresh endpoint
+10. configureRefresh()           — authentication/refresh service (POST /authentication/refresh)
 11. configureServices()          — users, roles
 12. configureAuthManagement()    — email verification, password reset (depends on users service)
 13. configureChannels()          — real-time channel setup
@@ -1228,12 +1229,18 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | `NODE_ENV` | | `development` | `development`, `test`, `production` |
 | `JWT_EXPIRY` | | `15m` | Access token lifetime |
 | `CORS_ORIGINS` | | `http://localhost:3000` | Comma-separated allowed origins |
+| `CORS_CREDENTIALS` | | `true` | Send `Access-Control-Allow-Credentials` to allowlisted origins (`false` to disable) |
+| `REFRESH_COOKIE_SAMESITE` | | `auto` | `auto`, `lax`, `strict` or `none` (`none` implies `Secure`) |
+| `TRUST_PROXY` | | `false` | Trust `X-Forwarded-*` headers — needed for Secure cookies behind a TLS proxy |
 | `ADMIN_EMAIL` | | — | Bootstrap admin email (seed only) |
 | `ADMIN_PASSWORD` | | — | Bootstrap admin password (seed only) |
 | `ARGON2_MEMORY_COST` | | `65536` | argon2 memory cost (KiB) |
 | `ARGON2_TIME_COST` | | `3` | argon2 iterations |
 | `REDIS_URL` | | — | Redis connection string — enables BullMQ notification queue |
-| `APP_URL` | | `http://localhost:3030` | Public base URL used in email links |
+| `APP_URL` | | first CORS origin | Public URL of the **web app** used in email links (warns when unset) |
+| `EMAIL_VERIFY_PATH` | | `/verify` | Frontend route for the email verification link |
+| `EMAIL_RESET_PASSWORD_PATH` | | `/reset-password` | Frontend route for the password reset link |
+| `EMAIL_VERIFY_SET_PASSWORD_PATH` | | `/verify-set-password` | Frontend route for the verify-and-set-password link |
 | `SMTP_URL` | | — | SMTP connection URL (enables SMTP driver) |
 | `SMTP_FROM_NAME` | | `feathers-baas` | SMTP sender display name |
 | `SMTP_FROM_ADDRESS` | | — | SMTP verified sender address |

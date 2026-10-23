@@ -14,6 +14,7 @@ import {
 import type { Application } from '../declarations.js'
 import type { AppConfiguration } from '../configuration.js'
 import { logger } from '../logger.js'
+import { VERIFY_DELAY_MS, RESET_DELAY_MS } from '../auth/auth-management.js'
 
 const AUTH_EVENTS = [
   'auth.resend-verify-signup',
@@ -89,13 +90,32 @@ function buildDriverRegistry(notifConfig: NonNullable<AppConfiguration['notifica
  */
 export async function configureNotifications(app: Application): Promise<void> {
   const config = app.get('config')
-  const notifConfig = config.notifications ?? { appUrl: 'http://localhost:3030' }
+  const notifConfig = config.notifications ?? {
+    paths: { verify: '/verify', resetPassword: '/reset-password', verifySetPassword: '/verify-set-password' },
+  }
 
   const registry = buildDriverRegistry(notifConfig)
 
   if (registry.listDriverNames().length === 0) {
     logger.info('Notifications: no email driver configured — using console-log stub')
     return
+  }
+
+  app.set('notificationRegistry', registry)
+
+  // Email links point at frontend routes — the API's own origin would be a dead link
+  let appUrl = notifConfig.appUrl
+  if (!appUrl) {
+    appUrl = config.cors.origins[0] ?? 'http://localhost:3000'
+    logger.warn({ appUrl }, 'Notifications: APP_URL is not set — email links fall back to the first CORS origin')
+  }
+
+  const notifierOptions = {
+    registry,
+    appUrl,
+    paths: notifConfig.paths,
+    verifyDelay: VERIFY_DELAY_MS,
+    resetDelay: RESET_DELAY_MS,
   }
 
   // With Redis — async delivery via BullMQ
@@ -115,7 +135,7 @@ export async function configureNotifications(app: Application): Promise<void> {
     const queue = createNotificationQueue(queueRedis)
     const worker = createNotificationWorker(registry, workerRedis, { concurrency: 5 })
 
-    app.set('notifier', createBullMQNotifier({ queue, registry, appUrl: notifConfig.appUrl }))
+    app.set('notifier', createBullMQNotifier({ ...notifierOptions, queue }))
     app.set('notificationQueue', queue)
     app.set('notificationWorker', worker)
 
@@ -124,6 +144,6 @@ export async function configureNotifications(app: Application): Promise<void> {
   }
 
   // Without Redis — direct synchronous send
-  app.set('notifier', createDirectNotifier({ registry, appUrl: notifConfig.appUrl }))
+  app.set('notifier', createDirectNotifier(notifierOptions))
   logger.info('Notifications: direct mode (no Redis) — emails sent synchronously')
 }

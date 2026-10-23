@@ -1,13 +1,6 @@
 import { NotAuthenticated, BadRequest } from '@feathersjs/errors'
 import type { Application } from '../declarations.js'
-
-type KoaContext = {
-  method: string
-  path: string
-  status: number
-  body: unknown
-  request: { body?: unknown }
-}
+import { sanitizeUser } from './sanitize.js'
 
 function decodeJwtHeader(token: string): Record<string, unknown> {
   try {
@@ -17,26 +10,26 @@ function decodeJwtHeader(token: string): Record<string, unknown> {
   }
 }
 
-export function configureRefresh(app: Application): void {
-  const koaApp = app as unknown as { use(mw: (ctx: KoaContext, next: () => Promise<void>) => Promise<void>): void }
+/**
+ * POST /authentication/refresh — exchange a refresh token for a new access token.
+ *
+ * Registered as a service (not Koa middleware) so the REST router dispatches it:
+ * a static `authentication/refresh` route wins over `authentication/:id`, and
+ * `create` answers 201 like POST /authentication.
+ */
+export class RefreshService {
+  constructor(private app: Application) {}
 
-  koaApp.use(async (ctx, next) => {
-    if (ctx.method !== 'POST' || ctx.path !== '/authentication/refresh') {
-      return next()
-    }
+  async create(data: { refreshToken?: unknown }) {
+    const refreshToken = data?.refreshToken
 
-    const body = (ctx.request.body ?? {}) as Record<string, unknown>
-    const refreshToken = body['refreshToken']
-
+    // 400 means a malformed request, not an invalid token — those are always 401
     if (!refreshToken || typeof refreshToken !== 'string') {
       throw new BadRequest('refreshToken is required')
     }
 
     // Verify signature, expiry, audience and issuer using the auth service
-    const authService = app.service('authentication') as unknown as {
-      verifyAccessToken(token: string): Promise<{ sub?: string }>
-      createAccessToken(payload: Record<string, unknown>, opts?: Record<string, unknown>): Promise<string>
-    }
+    const authService = this.app.service('authentication')
 
     let payload: { sub?: string }
     try {
@@ -53,13 +46,16 @@ export function configureRefresh(app: Application): void {
     const userId = payload.sub
     if (!userId) throw new NotAuthenticated('Invalid refresh token payload')
 
-    // Fetch the current user record (internal call — bypasses authenticate hook)
-    const user = await app.service('users').get(userId)
+    // Internal call — bypasses the authenticate hook, and with it removeVerification
+    const user = (await this.app.service('users').get(userId)) as unknown as Record<string, unknown>
 
     // Issue a new access token with the standard access token options
     const accessToken = await authService.createAccessToken({ sub: userId })
 
-    ctx.status = 200
-    ctx.body = { accessToken, user }
-  })
+    return { accessToken, user: sanitizeUser(user) }
+  }
+}
+
+export function configureRefresh(app: Application): void {
+  app.use('authentication/refresh', new RefreshService(app), { methods: ['create'], events: [] })
 }

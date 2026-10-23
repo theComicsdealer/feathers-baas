@@ -40,7 +40,25 @@ const AppConfigurationSchema = Type.Object({
 
   cors: Type.Object({
     origins: Type.Array(Type.String(), { default: ['http://localhost:3000'] }),
+    /** Send Access-Control-Allow-Credentials so browsers attach the refresh cookie cross-origin. */
+    credentials: Type.Boolean({ default: true }),
   }),
+
+  refreshCookie: Type.Object({
+    /**
+     * `auto` (default): SameSite=None; Secure when the browser marks the login request
+     * `Sec-Fetch-Site: cross-site`, SameSite=Lax otherwise. `none` always implies Secure.
+     */
+    sameSite: Type.Union([
+      Type.Literal('auto'),
+      Type.Literal('lax'),
+      Type.Literal('strict'),
+      Type.Literal('none'),
+    ], { default: 'auto' }),
+  }),
+
+  /** Trust X-Forwarded-* headers (koa `app.proxy`) — required for Secure cookies behind a TLS proxy. */
+  trustProxy: Type.Boolean({ default: false }),
 
   adminEmail: Type.Optional(Type.String()),
   adminPassword: Type.Optional(Type.String()),
@@ -51,8 +69,17 @@ const AppConfigurationSchema = Type.Object({
   })),
 
   notifications: Type.Optional(Type.Object({
-    /** Public base URL passed into verification/reset email links. */
-    appUrl: Type.String({ default: 'http://localhost:3030' }),
+    /**
+     * Public base URL of the **web app** (not this API) that serves the verification /
+     * reset pages linked from emails. Falls back to the first CORS origin, with a warning.
+     */
+    appUrl: Type.Optional(Type.String({ minLength: 1 })),
+    /** Frontend routes used in email links. */
+    paths: Type.Object({
+      verify: Type.String({ default: '/verify' }),
+      resetPassword: Type.String({ default: '/reset-password' }),
+      verifySetPassword: Type.String({ default: '/verify-set-password' }),
+    }),
     /** SMTP driver config — set to enable nodemailer email sending. */
     smtp: Type.Optional(Type.Object({
       url: Type.String({ minLength: 1 }),
@@ -127,7 +154,14 @@ export function resolveConfig(): AppConfiguration {
       origins: process.env['CORS_ORIGINS']
         ? process.env['CORS_ORIGINS'].split(',').map((s) => s.trim())
         : ['http://localhost:3000'],
+      credentials: process.env['CORS_CREDENTIALS'] !== 'false',
     },
+
+    refreshCookie: {
+      sameSite: process.env['REFRESH_COOKIE_SAMESITE'] ?? 'auto',
+    },
+
+    trustProxy: process.env['TRUST_PROXY'] === 'true',
 
     adminEmail: process.env['ADMIN_EMAIL'],
     adminPassword: process.env['ADMIN_PASSWORD'],
@@ -136,39 +170,43 @@ export function resolveConfig(): AppConfiguration {
       ? { url: process.env['REDIS_URL'] }
       : undefined,
 
-    notifications: (process.env['SMTP_URL'] || process.env['RESEND_API_KEY'] || process.env['SENDGRID_API_KEY'] || process.env['BREVO_API_KEY'])
-      ? {
-          appUrl: process.env['APP_URL'] ?? 'http://localhost:3030',
-          smtp: process.env['SMTP_URL']
-            ? {
-                url: process.env['SMTP_URL'],
-                fromName: process.env['SMTP_FROM_NAME'] ?? 'feathers-baas',
-                fromAddress: process.env['SMTP_FROM_ADDRESS'] ?? '',
-              }
-            : undefined,
-          resend: process.env['RESEND_API_KEY']
-            ? {
-                apiKey: process.env['RESEND_API_KEY'],
-                fromName: process.env['RESEND_FROM_NAME'] ?? 'feathers-baas',
-                fromAddress: process.env['RESEND_FROM_ADDRESS'] ?? '',
-              }
-            : undefined,
-          sendgrid: process.env['SENDGRID_API_KEY']
-            ? {
-                apiKey: process.env['SENDGRID_API_KEY'],
-                fromName: process.env['SENDGRID_FROM_NAME'] ?? 'feathers-baas',
-                fromAddress: process.env['SENDGRID_FROM_ADDRESS'] ?? '',
-              }
-            : undefined,
-          brevo: process.env['BREVO_API_KEY']
-            ? {
-                apiKey: process.env['BREVO_API_KEY'],
-                fromName: process.env['BREVO_FROM_NAME'] ?? 'feathers-baas',
-                fromAddress: process.env['BREVO_FROM_ADDRESS'] ?? '',
-              }
-            : undefined,
-        }
-      : undefined,
+    // Always resolved, so APP_URL and the paths are honoured even before a driver is set
+    notifications: {
+      appUrl: process.env['APP_URL'] || undefined,
+      paths: {
+        verify: process.env['EMAIL_VERIFY_PATH'] ?? '/verify',
+        resetPassword: process.env['EMAIL_RESET_PASSWORD_PATH'] ?? '/reset-password',
+        verifySetPassword: process.env['EMAIL_VERIFY_SET_PASSWORD_PATH'] ?? '/verify-set-password',
+      },
+      smtp: process.env['SMTP_URL']
+        ? {
+            url: process.env['SMTP_URL'],
+            fromName: process.env['SMTP_FROM_NAME'] ?? 'feathers-baas',
+            fromAddress: process.env['SMTP_FROM_ADDRESS'] ?? '',
+          }
+        : undefined,
+      resend: process.env['RESEND_API_KEY']
+        ? {
+            apiKey: process.env['RESEND_API_KEY'],
+            fromName: process.env['RESEND_FROM_NAME'] ?? 'feathers-baas',
+            fromAddress: process.env['RESEND_FROM_ADDRESS'] ?? '',
+          }
+        : undefined,
+      sendgrid: process.env['SENDGRID_API_KEY']
+        ? {
+            apiKey: process.env['SENDGRID_API_KEY'],
+            fromName: process.env['SENDGRID_FROM_NAME'] ?? 'feathers-baas',
+            fromAddress: process.env['SENDGRID_FROM_ADDRESS'] ?? '',
+          }
+        : undefined,
+      brevo: process.env['BREVO_API_KEY']
+        ? {
+            apiKey: process.env['BREVO_API_KEY'],
+            fromName: process.env['BREVO_FROM_NAME'] ?? 'feathers-baas',
+            fromAddress: process.env['BREVO_FROM_ADDRESS'] ?? '',
+          }
+        : undefined,
+    },
   }
 
   if (!Value.Check(AppConfigurationSchema, raw)) {

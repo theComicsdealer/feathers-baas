@@ -256,7 +256,7 @@ export function generateOpenApiSpec(app: Application): Record<string, unknown> {
         },
       },
       responses: {
-        '200': {
+        '201': {
           description: 'New access token issued',
           content: {
             'application/json': {
@@ -270,7 +270,8 @@ export function generateOpenApiSpec(app: Application): Record<string, unknown> {
             },
           },
         },
-        '401': { description: 'Invalid or expired refresh token' },
+        '400': { description: 'Missing `refreshToken` in the body — not a token-validity signal' },
+        '401': { description: 'Invalid or expired refresh token, or an access token was submitted' },
       },
     },
   }

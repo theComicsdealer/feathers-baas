@@ -7,12 +7,14 @@ import type { Worker, Queue } from 'bullmq'
 import type { AppConfiguration } from './configuration.js'
 import type { UsersClass, UsersMongoClass } from './services/users/users.class.js'
 import type { RolesClass, RolesMongoClass } from './services/roles/roles.class.js'
-import type { NotificationJob } from '@feathers-baas/plugin-notifications'
+import type { NotificationJob, DriverRegistry } from '@feathers-baas/plugin-notifications'
+import type { RefreshService } from './auth/refresh.js'
 
 export type { AppConfiguration }
 
 export interface ServiceTypes {
   authentication: AuthenticationService
+  'authentication/refresh': RefreshService
   users: UsersClass | UsersMongoClass
   roles: RolesClass | RolesMongoClass
 }
@@ -30,6 +32,8 @@ export interface Configuration {
   notifier?: AppNotifierFn
   notificationWorker?: Worker<NotificationJob>
   notificationQueue?: Queue<NotificationJob>
+  /** Configured email drivers — reuse them instead of building a second registry. */
+  notificationRegistry?: DriverRegistry
   mongoClient?: MongoClient
   mongoDb?: Db
 }
