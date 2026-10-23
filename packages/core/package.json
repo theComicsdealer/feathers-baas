@@ -15,6 +15,10 @@
   "main": "./dist/exports.cjs",
   "module": "./dist/exports.js",
   "types": "./dist/exports.d.ts",
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
   "exports": {
     ".": {
       "import": {

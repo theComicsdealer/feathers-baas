@@ -15,7 +15,8 @@
     "clean": "pnpm -r clean",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "check-packages": "node scripts/check-packages.mjs",
+    "release": "pnpm build && pnpm check-packages && changeset publish"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
