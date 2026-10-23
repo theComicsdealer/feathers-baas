@@ -270,6 +270,9 @@ Access tokens (`typ: access`) are rejected at `/authentication/refresh`, and ref
 | `JWT_SECRET` | *(required)* | HMAC signing secret — min 32 characters |
 | `JWT_EXPIRY` | `15m` | Access token lifetime |
 | `JWT_REFRESH_EXPIRY` | `7d` | Refresh token lifetime (cookie + response body) |
+| `REFRESH_COOKIE_SAMESITE` | `auto` | `auto` picks `None; Secure` for cross-site logins and `Lax` otherwise; or force `lax`, `strict`, `none` |
+| `CORS_CREDENTIALS` | `true` | Send `Access-Control-Allow-Credentials` so browsers attach the cookie cross-origin |
+| `TRUST_PROXY` | `false` | Trust `X-Forwarded-*` — required for the `Secure` cookie behind a TLS-terminating proxy |
 
 ---
 
@@ -303,6 +306,28 @@ app.configure(
   })
 )
 ```
+
+### Cross-origin frontends (refresh cookie)
+
+When the frontend and the API are on different origins, the browser only stores and sends the `feathers-refresh` cookie if the request is made **with credentials**:
+
+```ts
+app.configure(
+  rest('https://api.example.com').fetch((url: string, init?: RequestInit) =>
+    window.fetch(url, { ...init, credentials: 'include' }),
+  ),
+)
+```
+
+Server-side checklist:
+
+1. Add the frontend origin to `CORS_ORIGINS` — only allowlisted origins get CORS headers, and they get `Access-Control-Allow-Credentials: true` (unless `CORS_CREDENTIALS=false`).
+2. Serve the API over **HTTPS**. A frontend on another domain (`app.example.com` → `api.other-host.com`) needs `SameSite=None; Secure`, which `REFRESH_COOKIE_SAMESITE=auto` picks automatically from the browser's `Sec-Fetch-Site` header.
+3. Behind a TLS-terminating proxy (most PaaS and load balancers), set `TRUST_PROXY=true` — otherwise the API sees plain HTTP, cannot set a `Secure` cookie and logs a warning (the login itself still succeeds).
+
+`localhost:3000` → `localhost:3030` counts as *same-site* (ports are ignored), so development works over plain HTTP with `SameSite=Lax`.
+
+> Clients that can't use cookies (mobile apps, server-to-server) use the `refreshToken` from the login response with `POST /authentication/refresh` instead.
 
 ### Real-time (Socket.io) client setup
 
@@ -451,7 +476,7 @@ curl -s -X POST http://localhost:3030/authManagement \
 
 ### Verification fields on the user record
 
-These fields are managed automatically — they are **never exposed in API responses** (stripped by the `removeVerification` after-hook):
+These fields are managed automatically and stripped from external API responses by the `removeVerification` after-hook:
 
 | Field | Type | Purpose |
 |---|---|---|
@@ -466,6 +491,14 @@ These fields are managed automatically — they are **never exposed in API respo
 | `resetAttempts` | `integer` | Number of reset attempts |
 
 > **Note:** `isVerified` is returned in user responses. All token fields are stripped.
+
+> **Internal reads are not stripped.** `removeVerification` only runs for external calls (`params.provider` set), so a user fetched with an internal `app.service('users').get(id)` still carries `verifyToken`, `resetToken`, etc. If such a user ends up in a response, pass it through `sanitizeUser` first — the built-in refresh endpoint and the JWT cookie refresh already do:
+>
+> ```ts
+> import { sanitizeUser } from '@feathers-baas/core'
+>
+> const user = sanitizeUser(await app.service('users').get(userId)) // no password, no verification fields
+> ```
 
 ---
 
@@ -842,6 +875,38 @@ REDIS_URL=redis://localhost:6379
 [INFO]: Notifications: BullMQ queue and worker started
 ```
 
+### Email links
+
+Verification and reset emails link to pages of **your web app**, not the API:
+
+| Env var | Default | Link |
+|---|---|---|
+| `APP_URL` | first `CORS_ORIGINS` entry (with a startup warning) | Base URL of the web app, e.g. `https://app.example.com` |
+| `EMAIL_VERIFY_PATH` | `/verify` | `${APP_URL}/verify?token=…` |
+| `EMAIL_RESET_PASSWORD_PATH` | `/reset-password` | `${APP_URL}/reset-password?token=…` |
+| `EMAIL_VERIFY_SET_PASSWORD_PATH` | `/verify-set-password` | `${APP_URL}/verify-set-password?token=…` |
+
+The "this link expires in…" copy is derived from the token lifetimes core configures: **5 days** for verification and **2 hours** for password reset.
+
+To change the email content itself, build your own notifier around the exported `buildAuthNotification` and reuse the drivers core already configured (`app.get('notificationRegistry')`):
+
+```ts
+import { createDirectNotifier, buildAuthNotification } from '@feathers-baas/plugin-notifications'
+
+const registry = app.get('notificationRegistry')
+if (registry) {
+  app.set('notifier', createDirectNotifier({
+    registry,
+    appUrl: 'https://app.example.com',
+    paths: { verify: '/auth/confirm' },
+    buildNotification: (type, user, opts) => {
+      const email = buildAuthNotification(type, user, opts)
+      return email && { ...email, subject: `[My App] ${email.subject}` }
+    },
+  }))
+}
+```
+
 ### Auth emails sent automatically
 
 | Auth event | Trigger |
@@ -856,6 +921,10 @@ REDIS_URL=redis://localhost:6379
 ### Graceful shutdown
 
 When Redis is configured, the BullMQ worker is drained before the process exits — in-flight jobs complete before Redis disconnects.
+
+### Redis keys
+
+The queue is named `feathers-baas-notifications` and namespaced with BullMQ's `prefix` option (`feathers-baas`), so its keys live under `feathers-baas:feathers-baas-notifications:*`. (Before `@feathers-baas/plugin-notifications` 0.3.0 the queue name contained `:`, which bullmq ≥ 5 rejects — the app failed to start whenever `REDIS_URL` and an email driver were both set.)
 
 ### Email drivers
 
@@ -1206,8 +1275,12 @@ If shutdown takes longer than 30 seconds, the process force-exits with code 1. T
 
 - Passwords hashed with **argon2id** (OWASP recommended parameters)
 - `password` field stripped from all API responses via after hooks
+- Verification / reset tokens stripped from user responses, including the refresh endpoints (`sanitizeUser`)
+- Wrong passwords, users without a password hash and soft-deleted users are rejected by the local strategy with `401`
+- Refresh token in an `HttpOnly` cookie scoped to `/authentication`; `SameSite=Lax`, or `None; Secure` for cross-site frontends
+- Access and refresh tokens are typed (`typ: access` / `typ: refresh`) and cannot be substituted for each other
 - Admin role cannot be self-assigned via REST
-- CORS origin allowlist (configurable via `CORS_ORIGINS`)
+- CORS origin allowlist (configurable via `CORS_ORIGINS`) — other origins get no CORS headers at all
 - Permission check gated on `isProvider('rest')` — internal CLI calls bypass it
 
 ---
@@ -1228,6 +1301,7 @@ All configuration is via environment variables (12-factor). See [packages/core/.
 | `HOST` | | `0.0.0.0` | Bind address |
 | `NODE_ENV` | | `development` | `development`, `test`, `production` |
 | `JWT_EXPIRY` | | `15m` | Access token lifetime |
+| `JWT_REFRESH_EXPIRY` | | `7d` | Refresh token lifetime |
 | `CORS_ORIGINS` | | `http://localhost:3000` | Comma-separated allowed origins |
 | `CORS_CREDENTIALS` | | `true` | Send `Access-Control-Allow-Credentials` to allowlisted origins (`false` to disable) |
 | `REFRESH_COOKIE_SAMESITE` | | `auto` | `auto`, `lax`, `strict` or `none` (`none` implies `Secure`) |
