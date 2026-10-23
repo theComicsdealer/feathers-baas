@@ -1,5 +1,13 @@
 # @feathers-baas/core
 
+## 0.4.1
+
+### Patch Changes
+
+- **Security:** fix authentication bypass in the local strategy ([GHSA-h2x2-x7xj-4cr3](https://github.com/theComicsdealer/feathers-baas/security/advisories/GHSA-h2x2-x7xj-4cr3)).
+
+  `ArgonLocalStrategy.comparePassword` returned `false` on a mismatch instead of throwing, which `LocalStrategy.authenticate` ignores — any password (or a user without a password hash) authenticated as any user. It now throws `NotAuthenticated`, looks users up through the hook-free `_find` (so the hash is actually compared), keeps excluding soft-deleted users, and never returns the hash on internal calls. Upgrading is required; this cannot be mitigated through configuration.
+
 ## 0.4.0
 
 ### Minor Changes
